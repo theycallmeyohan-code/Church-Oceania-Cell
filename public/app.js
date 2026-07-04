@@ -273,7 +273,7 @@ function renderCellTabs() {
     .map((cell) => {
       const count = state.members.filter((member) => member.cellId === cell.id && !member.archivedAt).length;
       return `<button class="cell-tab ${cell.id === state.selectedCellId ? "active" : ""}" data-cell-id="${cell.id}" type="button">
-        <strong>${escapeHtml(cell.name)}</strong>
+        <strong>${cellNameHtml(cell.name)}</strong>
         <span>${count}</span>
       </button>`;
     })
@@ -287,6 +287,13 @@ function renderCellTabs() {
       render();
     });
   });
+}
+
+function cellNameHtml(name) {
+  const text = String(name || "").trim();
+  const match = /^(남자|여자)\s*(\d+)셀$/.exec(text);
+  if (!match) return escapeHtml(text);
+  return '<span class="cell-tab-gender">' + escapeHtml(match[1]) + '</span><span class="cell-tab-number">' + escapeHtml(match[2]) + '셀</span>';
 }
 
 function renderCellSelect() {
