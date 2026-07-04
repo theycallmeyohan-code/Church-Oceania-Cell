@@ -1,36 +1,54 @@
 # seosanch-cell
 
-Cloudflare Pages?? ???? ?/???? ?????.
+Cloudflare Pages app for church cell and pastoral-care management.
 
-? ????? ? ??? Cloudflare ?? ??? ?????. ?? ??, ????, ??, ????, ????, ???? ?? ?? ????? GitHub? ???? ?? Cloudflare D1/R2? ?????.
+This repository stores only application code and Cloudflare deployment configuration. Do not commit real member photos, phone numbers, addresses, birth dates, family notes, visit notes, call summaries, spreadsheets, or PDF source files.
 
-## ??
+## Architecture
 
-- Cloudflare Pages: ?? ??
-- Pages Functions: API ??
-- Cloudflare D1: ?? ??? ???? ??
-- Cloudflare R2: ?? ?? ??
-- Cloudflare Access: ??? ??? ??
+- Cloudflare Pages: web app hosting
+- Pages Functions: API endpoints
+- Cloudflare D1: members, visit notes, audit logs
+- Cloudflare R2: member photos
+- Cloudflare Access: admin-only login protection
 
-## ?? ??
+## Local development
 
-?? ??? `public/index.html`? ?? ??? ? ????. API, D1, R2?? ?? ????? Wrangler? ?????.
+Static UI can be opened from `public/index.html`. For Pages Functions and bindings, use Wrangler.
 
 ```powershell
 npm run dev
 ```
 
-## Cloudflare ??
+## Build settings for Cloudflare Pages
+
+- Framework preset: None
+- Build command: `exit 0` or empty
+- Build output directory: `public`
+- Production branch: `main`
+
+## Pages bindings
+
+The placeholder D1/R2 bindings are intentionally not stored in `wrangler.jsonc`. Add real bindings in the Cloudflare Pages dashboard after creating the resources.
+
+Required production bindings:
+
+- D1 binding: variable name `DB`, database `seosanch-cell-db`
+- R2 binding: variable name `PHOTOS`, bucket `seosanch-member-photos`
+
+## Cloudflare resources
+
+Create the resources:
 
 ```powershell
 npx wrangler d1 create seosanch-cell-db
 npx wrangler r2 bucket create seosanch-member-photos
 ```
 
-??? D1 `database_id`? `wrangler.jsonc`? ?? ? ??????? ?????.
+Apply the schema migrations:
 
 ```powershell
 npx wrangler d1 migrations apply seosanch-cell-db --remote
 ```
 
-?? ????? Cloudflare Access? ??, `ADMIN_TOKEN`, `CALL_NOTE_TOKEN` secret? ?????.
+For production, enable Cloudflare Access and set secrets for `ADMIN_TOKEN` and `CALL_NOTE_TOKEN` if token-based API writes are used.
