@@ -503,6 +503,13 @@ function portraitHtml(member, large = false) {
   return `<span class="${classes}" aria-hidden="true">${escapeHtml(initials(member.name))}</span>`;
 }
 
+function updatePhotoPreview(member) {
+  el.photoPreview.outerHTML = portraitHtml(member, true)
+    .replace("<span", "<div id=\"photoPreview\"")
+    .replace("</span>", "</div>");
+  el.photoPreview = document.getElementById("photoPreview");
+}
+
 function selectMember(memberId) {
   const member = state.members.find((item) => item.id === memberId);
   if (member?.cellId) state.selectedCellId = member.cellId;
@@ -528,8 +535,7 @@ function renderDetail() {
   el.memberForm.classList.remove("hidden");
   el.formMode.textContent = member.id.startsWith("new-") ? "신규" : "상세";
   el.formTitle.textContent = member.name || "성도 정보";
-  el.photoPreview.outerHTML = portraitHtml(member, true).replace("<span", "<div id=\"photoPreview\"").replace("</span>", "</div>");
-  el.photoPreview = document.getElementById("photoPreview");
+  updatePhotoPreview(member);
 
   el.memberName.value = member.name || "";
   el.memberTitle.value = member.title || "";
@@ -665,7 +671,7 @@ async function handlePhotoPick(event) {
     member.photoKey = "";
     member.photoRemoved = false;
     renderMembers();
-    renderDetail();
+    updatePhotoPreview(member);
   }
 }
 
@@ -679,7 +685,7 @@ function removePhoto() {
   state.pendingPhotoFile = null;
   persist();
   renderMembers();
-  renderDetail();
+  updatePhotoPreview(member);
 }
 
 async function uploadPhotoToApi(memberId, file) {
