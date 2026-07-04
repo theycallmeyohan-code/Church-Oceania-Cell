@@ -479,13 +479,21 @@ function memberRoleLabel(member) {
   return ROLES.find((item) => item.value === member.role)?.label || "";
 }
 
+function memberNameHtml(member, fallback = "이름 없음") {
+  const name = escapeHtml(member.name || fallback);
+  const badge = isNewMember(member)
+    ? '<span class="new-member-badge">새신자</span>'
+    : "";
+  return `<span class="name-with-badge"><span>${name}</span>${badge}</span>`;
+}
+
 function memberCardHtml(member, showCell = false) {
   const role = memberRoleLabel(member);
   const cellLabel = showCell ? memberCellLabel(member) : "";
   return `<button class="member-card ${member.id === state.selectedMemberId ? "selected" : ""} ${member.archivedAt ? "archived" : ""} ${member.longAbsent ? "long-absent" : ""}" data-member-id="${member.id}" type="button">
     ${portraitHtml(member)}
     <span>
-      <span class="member-name">${escapeHtml(member.name)}</span>
+      <span class="member-name">${memberNameHtml(member)}</span>
       <span class="member-sub">${escapeHtml(member.title || "\uC9C1\uBD84 \uC5C6\uC74C")}</span>
       ${cellLabel ? `<span class="member-cell">${escapeHtml(cellLabel)}</span>` : ""}
       ${role && member.role ? `<span class="role-chip">${escapeHtml(role)}</span>` : ""}
@@ -534,7 +542,7 @@ function renderDetail() {
   el.emptyDetail.classList.add("hidden");
   el.memberForm.classList.remove("hidden");
   el.formMode.textContent = member.id.startsWith("new-") ? "신규" : "상세";
-  el.formTitle.textContent = member.name || "성도 정보";
+  el.formTitle.innerHTML = member.name ? memberNameHtml(member) : "성도 정보";
   updatePhotoPreview(member);
 
   el.memberName.value = member.name || "";
@@ -971,7 +979,7 @@ function attendanceMemberCardHtml(member, presentIds) {
   return `<button class="attendance-member-card ${present ? "present" : ""} ${member.longAbsent ? "long-absent" : ""}" data-attendance-member-id="${escapeAttribute(member.id)}" type="button" aria-pressed="${present ? "true" : "false"}">
     ${portraitHtml(member)}
     <span>
-      <strong>${escapeHtml(member.name)}</strong>
+      <strong>${memberNameHtml(member)}</strong>
       <small>${escapeHtml([member.title, member.longAbsent ? "장기결석" : ""].filter(Boolean).join(" · "))}</small>
     </span>
     <em>${present ? "출석" : "결석"}</em>
@@ -1064,6 +1072,7 @@ function attendanceRecordToMember(record) {
     name: record.memberName,
     title: record.memberTitle || "",
     role: record.memberRole || "",
+    registeredAt: current?.registeredAt || "",
     longAbsent: Boolean(record.memberLongAbsent),
     cellSortOrder: Number(record.cellSortOrder || cellSortRank(record.cellId)),
     photoUrl: current?.photoUrl || record.photoUrl || "",
@@ -1420,6 +1429,18 @@ function updateBirthAge() {
 function ageLabel(dateValue) {
   const age = calculateAge(dateValue);
   return Number.isFinite(age) ? age + "\uC138" : "";
+}
+
+function isNewMember(member) {
+  const registeredDate = parseDateValue(member?.registeredAt);
+  if (!registeredDate) return false;
+
+  const todayDate = parseDateValue(localDateString(new Date()));
+  if (!todayDate || registeredDate > todayDate) return false;
+
+  const oneYearLater = new Date(registeredDate);
+  oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+  return todayDate < oneYearLater;
 }
 
 function calculateAge(dateValue) {
