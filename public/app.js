@@ -51,6 +51,7 @@ const state = {
   showArchived: false,
   mode: "view",
   pendingPhotoData: null,
+  selectedVisitDate: "",
   apiOnline: false
 };
 
@@ -70,10 +71,10 @@ async function init() {
 
 function bindElements() {
   [
-    "cellTabs", "searchInput", "showArchived", "memberGrid", "cellTitle", "cellMeta",
-    "activeCount", "archivedCount", "addMemberBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn",
-    "currentPassword", "newPassword", "confirmPassword", "detailPanel", "emptyDetail",
-    "memberForm", "formMode", "formTitle", "closePanelBtn", "photoPreview",
+    "workspace", "cellTabs", "searchInput", "showArchived", "memberGrid", "cellTitle", "cellMeta",
+    "activeCount", "archivedCount", "addMemberBtn", "visitDatesBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn",
+    "currentPassword", "newPassword", "confirmPassword", "visitDatesModal", "visitDatesCloseBtn", "visitDateChips", "visitDateEntries", "detailPanel", "emptyDetail",
+    "memberForm", "formMode", "formTitle", "backToListBtn", "closePanelBtn", "photoPreview",
     "photoInput", "memberName", "memberTitle", "memberCell",
     "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberMemo",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
@@ -97,6 +98,12 @@ function bindEvents() {
   });
 
   el.addMemberBtn.addEventListener("click", startNewMember);
+  el.visitDatesBtn.addEventListener("click", openVisitDates);
+  el.visitDatesCloseBtn.addEventListener("click", closeVisitDates);
+  el.visitDatesModal.addEventListener("click", (event) => {
+    if (event.target === el.visitDatesModal) closeVisitDates();
+  });
+  el.backToListBtn.addEventListener("click", closeDetail);
   el.settingsBtn.addEventListener("click", openSettings);
   el.settingsCloseBtn.addEventListener("click", closeSettings);
   el.settingsCancelBtn.addEventListener("click", closeSettings);
@@ -256,6 +263,7 @@ function render() {
   renderCellSelect();
   renderMembers();
   renderDetail();
+  updateMobileDetailState();
 }
 
 function renderCellTabs() {
@@ -441,6 +449,7 @@ function selectMember(memberId) {
   renderCellTabs();
   renderMembers();
   renderDetail();
+  scrollMobileToTop();
 }
 
 function renderDetail() {
@@ -475,6 +484,7 @@ function renderDetail() {
   el.restoreBtn.classList.toggle("hidden", !member.archivedAt);
   el.deleteBtn.classList.toggle("hidden", member.id.startsWith("new-"));
   renderVisits(member.id);
+  updateMobileDetailState();
 }
 
 function startNewMember() {
@@ -501,6 +511,7 @@ function startNewMember() {
   state.selectedMemberId = member.id;
   state.pendingPhotoData = null;
   render();
+  scrollMobileToTop();
   el.memberName.focus();
 }
 
@@ -687,6 +698,7 @@ function addVisit() {
   el.visitAction.value = "";
   persist();
   renderVisits(member.id);
+  if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
   toast("심방내역이 추가되었습니다");
 }
 
@@ -729,6 +741,110 @@ async function writeFetch(url, options = {}, retried = false) {
     }
   }
   return response;
+}
+
+function openVisitDates() {
+  state.selectedVisitDate = state.selectedVisitDate || latestVisitDate() || today();
+  renderVisitDates();
+  el.visitDatesModal.classList.remove("hidden");
+  el.visitDatesModal.setAttribute("aria-hidden", "false");
+}
+
+function closeVisitDates() {
+  el.visitDatesModal.classList.add("hidden");
+  el.visitDatesModal.setAttribute("aria-hidden", "true");
+}
+
+function renderVisitDates() {
+  const grouped = groupVisitsByDate();
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  if (!dates.length) {
+    el.visitDateChips.innerHTML = '<p class="visit-date-empty">아직 심방내역이 없습니다.</p>';
+    el.visitDateEntries.innerHTML = '';
+    return;
+  }
+
+  if (!dates.includes(state.selectedVisitDate)) state.selectedVisitDate = dates[0];
+  el.visitDateChips.innerHTML = dates.map((date) => {
+    const count = grouped[date].length;
+    return `<button class="visit-date-chip ${date === state.selectedVisitDate ? "active" : ""}" data-visit-date="${escapeAttribute(date)}" type="button">
+      <strong>${escapeHtml(formatDateLabel(date))}</strong>
+      <span>${count}건</span>
+    </button>`;
+  }).join("");
+
+  el.visitDateChips.querySelectorAll("[data-visit-date]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedVisitDate = button.dataset.visitDate;
+      renderVisitDates();
+    });
+  });
+
+  const visits = (grouped[state.selectedVisitDate] || [])
+    .slice()
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  el.visitDateEntries.innerHTML = visits.map((visit) => visitDateEntryHtml(visit)).join("");
+  el.visitDateEntries.querySelectorAll("[data-member-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      closeVisitDates();
+      selectMember(button.dataset.memberId);
+    });
+  });
+}
+
+function groupVisitsByDate() {
+  return state.visits.reduce((groups, visit) => {
+    const date = visitDateKey(visit);
+    if (!date) return groups;
+    groups[date] = groups[date] || [];
+    groups[date].push(visit);
+    return groups;
+  }, {});
+}
+
+function latestVisitDate() {
+  return Object.keys(groupVisitsByDate()).sort((a, b) => b.localeCompare(a))[0] || "";
+}
+
+function visitDateKey(visit) {
+  return String(visit.visitDate || visit.createdAt || "").slice(0, 10);
+}
+
+function visitDateEntryHtml(visit) {
+  const member = state.members.find((item) => item.id === visit.memberId);
+  const memberName = member?.name || "이름 없음";
+  const cellLabel = member ? memberCellLabel(member) : "";
+  const title = member?.title || "";
+  const memberId = member?.id || "";
+  return `<article class="visit-date-entry">
+    <button class="visit-date-member" type="button" ${memberId ? `data-member-id="${escapeAttribute(memberId)}"` : "disabled"}>
+      <strong>${escapeHtml(memberName)}</strong>
+      <span>${escapeHtml([cellLabel, title].filter(Boolean).join(" · "))}</span>
+    </button>
+    <div class="visit-date-body">
+      <small>${escapeHtml(visit.visitType || "심방")}</small>
+      <p>${escapeHtml(visit.summary || "")}</p>
+      ${visit.prayer ? `<small>기도제목: ${escapeHtml(visit.prayer)}</small>` : ""}
+      ${visit.action ? `<small>후속 조치: ${escapeHtml(visit.action)}</small>` : ""}
+    </div>
+  </article>`;
+}
+
+function formatDateLabel(date) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || ""));
+  return match ? match[1] + ". " + match[2] + ". " + match[3] + "." : date;
+}
+
+function updateMobileDetailState() {
+  el.workspace.classList.toggle("detail-active", Boolean(selectedMember()));
+}
+
+function isMobileView() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function scrollMobileToTop() {
+  if (isMobileView()) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function openSettings() {

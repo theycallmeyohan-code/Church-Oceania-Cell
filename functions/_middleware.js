@@ -12,7 +12,7 @@ const SITE_URL = "https://seosanch-cell.pages.dev/";
 const META_TITLE = "\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4 \uAD50\uAD6C\uAD00\uB9AC";
 const META_SITE_NAME = "\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4";
 const META_DESCRIPTION = "\uC140\uBCC4 \uC131\uB3C4 \uAD00\uB9AC\uC640 \uC2EC\uBC29 \uAE30\uB85D\uC744 \uC704\uD55C \uAD00\uB9AC\uC790 \uD398\uC774\uC9C0";
-const META_IMAGE = SITE_URL + "share-card.png?v=1";
+const META_IMAGE = SITE_URL + "share-card.png?v=2";
 const LOGIN_NOT_CONFIGURED = "\uB85C\uADF8\uC778 \uC124\uC815\uC774 \uC544\uC9C1 \uBC18\uC601\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.";
 const INVALID_PASSWORD = "\uBE44\uBC00\uBC88\uD638\uAC00 \uB9DE\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.";
 
@@ -253,6 +253,9 @@ function metaTags() {
     <meta property="og:description" content="${META_DESCRIPTION}">
     <meta property="og:url" content="${SITE_URL}">
     <meta property="og:image" content="${META_IMAGE}">
+    <meta property="og:image:secure_url" content="${META_IMAGE}">
+    <meta property="og:image:alt" content="${META_TITLE}">
+    <meta property="og:locale" content="ko_KR">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
