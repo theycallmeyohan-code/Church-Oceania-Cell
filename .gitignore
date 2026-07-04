@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.env
+.env.*
+tmp/
+*.log
+*.xls
+*.xlsx
+*.pdf
+public/photos/
+public/member-details.private.js

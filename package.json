@@ -1,0 +1,11 @@
+{
+  "name": "seosanch-cell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Pages cell member care manager.",
+  "scripts": {
+    "dev": "npx wrangler pages dev public --persist-to=.wrangler/state",
+    "deploy": "npx wrangler pages deploy public --project-name seosanch-cell",
+    "check": "node --check public/app.js && node --check functions/api/[[path]].js"
+  }
+}
