@@ -33,7 +33,7 @@ export async function onRequest(context) {
 
 function normalizePath(path) {
   if (!path) return [];
-  return Array.isArray(path) ? path : [path];
+  return Array.isArray(path) ? path : String(path).split("/").filter(Boolean);
 }
 
 async function getBootstrap(env) {

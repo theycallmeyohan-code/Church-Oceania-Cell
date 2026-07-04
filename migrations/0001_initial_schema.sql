@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS visit_notes (
   id TEXT PRIMARY KEY,
   member_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   visit_date TEXT NOT NULL,
-  visit_type TEXT DEFAULT '??',
+  visit_type TEXT DEFAULT '심방',
   summary TEXT NOT NULL,
   prayer TEXT DEFAULT '',
   action TEXT DEFAULT '',

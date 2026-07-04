@@ -741,7 +741,7 @@ async function writeFetch(url, options = {}, retried = false) {
   if (token) headers.set("X-Admin-Token", token);
   const response = await fetch(url, { ...options, headers });
   if (response.status === 401 && !retried) {
-    const nextToken = prompt("?? ?? ?????");
+    const nextToken = prompt("관리자 토큰을 입력하세요");
     if (nextToken) {
       localStorage.setItem("seosanch-cell:admin-token", nextToken.trim());
       return writeFetch(url, options, true);
@@ -946,7 +946,7 @@ function parseBirthValue(value) {
   const text = String(value || "").trim();
   const date = text.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] || "";
   const parts = text.split(/\s+/);
-  const marker = ["\uC591", "\uC74C", "?"].find((item) => parts.includes(item)) || "";
+  const marker = ["\uC591", "\uC74C"].find((item) => parts.includes(item)) || "";
   const age = text.match(/\((\d+)\uC138\)/)?.[1] || "";
   return { date, marker, age };
 }
