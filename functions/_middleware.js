@@ -1,5 +1,7 @@
 const SESSION_COOKIE = "seosanch_cell_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
+const PASSWORD_HASH_KEY = "auth.passwordHash";
+const PASSWORD_ALGORITHM = "pbkdf2-sha256";
 const PUBLIC_AUTH_ASSETS = new Set([
   "/share-card.png",
   "/favicon.svg",
@@ -11,6 +13,8 @@ const META_TITLE = "\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4 \uAD50\uAD
 const META_SITE_NAME = "\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4";
 const META_DESCRIPTION = "\uC140\uBCC4 \uC131\uB3C4 \uAD00\uB9AC\uC640 \uC2EC\uBC29 \uAE30\uB85D\uC744 \uC704\uD55C \uAD00\uB9AC\uC790 \uD398\uC774\uC9C0";
 const META_IMAGE = SITE_URL + "share-card.png?v=1";
+const LOGIN_NOT_CONFIGURED = "\uB85C\uADF8\uC778 \uC124\uC815\uC774 \uC544\uC9C1 \uBC18\uC601\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.";
+const INVALID_PASSWORD = "\uBE44\uBC00\uBC88\uD638\uAC00 \uB9DE\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.";
 
 export async function onRequest(context) {
   const { request, env, next } = context;
@@ -18,11 +22,13 @@ export async function onRequest(context) {
 
   if (request.method === "OPTIONS") return next();
   if (PUBLIC_AUTH_ASSETS.has(url.pathname)) return next();
-  if (!env.SITE_PASSWORD) {
+
+  const authConfigured = await isAuthConfigured(env);
+  if (!authConfigured) {
     if (url.pathname.startsWith("/api/")) {
       return json({ error: "Login is not configured" }, 503);
     }
-    return loginPage("\uB85C\uADF8\uC778 \uC124\uC815\uC774 \uC544\uC9C1 \uBC18\uC601\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.", 503);
+    return loginPage(LOGIN_NOT_CONFIGURED, 503);
   }
 
   if (url.pathname === "/__auth/login") {
@@ -42,11 +48,17 @@ export async function onRequest(context) {
   return loginPage();
 }
 
+async function isAuthConfigured(env) {
+  const hasPassword = Boolean((await getStoredPasswordHash(env)) || env.SITE_PASSWORD);
+  const hasSessionSecret = Boolean(env.SESSION_SECRET || env.SITE_PASSWORD);
+  return hasPassword && hasSessionSecret;
+}
+
 async function login(request, env) {
   const form = await request.formData();
   const password = String(form.get("password") || "");
-  if (password !== env.SITE_PASSWORD) {
-    return loginPage("비밀번호가 맞지 않습니다.", 401);
+  if (!(await verifySitePassword(password, env))) {
+    return loginPage(INVALID_PASSWORD, 401);
   }
 
   const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
@@ -64,6 +76,52 @@ async function login(request, env) {
   return redirect("/", { "Set-Cookie": cookie });
 }
 
+async function verifySitePassword(password, env) {
+  const storedHash = await getStoredPasswordHash(env);
+  if (storedHash) return verifyPasswordHash(password, storedHash);
+  return Boolean(env.SITE_PASSWORD) && password === env.SITE_PASSWORD;
+}
+
+async function getStoredPasswordHash(env) {
+  if (!env.DB) return "";
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_settings WHERE key = ?")
+      .bind(PASSWORD_HASH_KEY)
+      .first();
+    return typeof row?.value === "string" ? row.value : "";
+  } catch {
+    return "";
+  }
+}
+
+async function verifyPasswordHash(password, storedHash) {
+  const [algorithm, iterationsText, saltText, expectedText] = String(storedHash || "").split("$");
+  const iterations = Number(iterationsText);
+  if (algorithm !== PASSWORD_ALGORITHM || !Number.isFinite(iterations) || !saltText || !expectedText) {
+    return false;
+  }
+
+  const salt = base64UrlToBytes(saltText);
+  const expected = base64UrlToBytes(expectedText);
+  const actual = new Uint8Array(await derivePasswordBits(password, salt, iterations));
+  return timingSafeBytesEqual(actual, expected);
+}
+
+async function derivePasswordBits(password, salt, iterations) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  return crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    key,
+    256
+  );
+}
+
 async function hasValidSession(request, env) {
   const cookies = parseCookies(request.headers.get("Cookie") || "");
   const value = cookies[SESSION_COOKIE];
@@ -79,6 +137,7 @@ async function hasValidSession(request, env) {
 
 async function sign(payload, env) {
   const secret = env.SESSION_SECRET || env.SITE_PASSWORD;
+  if (!secret) throw new Error("Session secret is not configured");
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -98,7 +157,8 @@ function loginPage(error = "", status = 200) {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>교구관리 로그인</title>
+    <title>\uAD50\uAD6C\uAD00\uB9AC \uB85C\uADF8\uC778</title>
+    ${metaTags()}
     <style>
       :root { color-scheme: light; }
       body {
@@ -168,15 +228,15 @@ function loginPage(error = "", status = 200) {
   </head>
   <body>
     <main>
-      <p class="eyebrow">남아메리카 공동체</p>
-      <h1>교구관리</h1>
+      <p class="eyebrow">\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4</p>
+      <h1>\uAD50\uAD6C\uAD00\uB9AC</h1>
       ${errorMarkup}
       <form method="post" action="/__auth/login">
         <label>
-          관리자 비밀번호
+          \uAD00\uB9AC\uC790 \uBE44\uBC00\uBC88\uD638
           <input name="password" type="password" autocomplete="current-password" autofocus required>
         </label>
-        <button type="submit">로그인</button>
+        <button type="submit">\uB85C\uADF8\uC778</button>
       </form>
     </main>
   </body>
@@ -237,11 +297,31 @@ function base64Url(buffer) {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
+function base64UrlToBytes(value) {
+  const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
 function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
   let result = 0;
   for (let index = 0; index < a.length; index += 1) {
     result |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  }
+  return result === 0;
+}
+
+function timingSafeBytesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    result |= a[index] ^ b[index];
   }
   return result === 0;
 }

@@ -36,6 +36,13 @@
             </svg>
             <input id="searchInput" type="search" placeholder="전체 검색: 이름, 전화, 자녀, 가족메모">
           </label>
+                    <button class="icon-button text-button subtle settings-button" id="settingsBtn" type="button" title="설정" aria-label="설정">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"></path>
+              <path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06a2.1 2.1 0 0 1-2.97 2.97l-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.66V21a2.1 2.1 0 0 1-4.2 0v-.09a1.8 1.8 0 0 0-1.1-1.66 1.8 1.8 0 0 0-2 .36l-.06.06a2.1 2.1 0 0 1-2.97-2.97l.06-.06a1.8 1.8 0 0 0 .36-2 1.8 1.8 0 0 0-1.66-1.1H3a2.1 2.1 0 0 1 0-4.2h.09a1.8 1.8 0 0 0 1.66-1.1 1.8 1.8 0 0 0-.36-2l-.06-.06a2.1 2.1 0 0 1 2.97-2.97l.06.06a1.8 1.8 0 0 0 2 .36H9.5A1.8 1.8 0 0 0 10.6 3V3a2.1 2.1 0 0 1 4.2 0v.09a1.8 1.8 0 0 0 1.1 1.66 1.8 1.8 0 0 0 2-.36l.06-.06a2.1 2.1 0 0 1 2.97 2.97l-.06.06a1.8 1.8 0 0 0-.36 2V9.5A1.8 1.8 0 0 0 21 10.6h.09a2.1 2.1 0 0 1 0 4.2H21a1.8 1.8 0 0 0-1.6.2Z"></path>
+            </svg>
+            <span>설정</span>
+          </button>
           <button class="icon-button text-button primary" id="addMemberBtn" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 5v14M5 12h14"></path>
@@ -186,6 +193,39 @@
       </main>
     </div>
 
+
+    <div class="modal-backdrop hidden" id="settingsModal" aria-hidden="true">
+      <form id="settingsForm" class="settings-dialog">
+        <div class="settings-head">
+          <div>
+            <p class="eyebrow">설정</p>
+            <h2>비밀번호 변경</h2>
+          </div>
+          <button class="icon-button text-button subtle" id="settingsCloseBtn" type="button" title="닫기" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12"></path>
+            </svg>
+            <span>닫기</span>
+          </button>
+        </div>
+        <div class="settings-fields">
+          <label>현재 비밀번호<input id="currentPassword" type="password" autocomplete="current-password" required></label>
+          <label>새 비밀번호<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+          <label>새 비밀번호 확인<input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+        </div>
+        <div class="button-row settings-actions">
+          <button class="icon-button text-button primary" type="submit">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+              <path d="M17 21v-8H7v8M7 3v5h8"></path>
+            </svg>
+            변경 저장
+          </button>
+          <button class="icon-button text-button subtle" id="settingsCancelBtn" type="button">취소</button>
+          <button class="icon-button text-button warning" id="logoutBtn" type="button">로그아웃</button>
+        </div>
+      </form>
+    </div>
     <div id="toast" class="toast" role="status"></div>
     <script src="./member-details.js?v=member-details-4"></script>
     <script src="./app.js?v=registration-date-1"></script>

@@ -71,7 +71,8 @@ async function init() {
 function bindElements() {
   [
     "cellTabs", "searchInput", "showArchived", "memberGrid", "cellTitle", "cellMeta",
-    "activeCount", "archivedCount", "addMemberBtn", "detailPanel", "emptyDetail",
+    "activeCount", "archivedCount", "addMemberBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn",
+    "currentPassword", "newPassword", "confirmPassword", "detailPanel", "emptyDetail",
     "memberForm", "formMode", "formTitle", "closePanelBtn", "photoPreview",
     "photoInput", "memberName", "memberTitle", "memberCell",
     "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberMemo",
@@ -96,6 +97,16 @@ function bindEvents() {
   });
 
   el.addMemberBtn.addEventListener("click", startNewMember);
+  el.settingsBtn.addEventListener("click", openSettings);
+  el.settingsCloseBtn.addEventListener("click", closeSettings);
+  el.settingsCancelBtn.addEventListener("click", closeSettings);
+  el.settingsModal.addEventListener("click", (event) => {
+    if (event.target === el.settingsModal) closeSettings();
+  });
+  el.settingsForm.addEventListener("submit", changePassword);
+  el.logoutBtn.addEventListener("click", () => {
+    window.location.href = "/__auth/logout";
+  });
   el.closePanelBtn.addEventListener("click", closeDetail);
   el.memberForm.addEventListener("submit", saveMember);
   el.photoInput.addEventListener("change", handlePhotoPick);
@@ -720,6 +731,57 @@ async function writeFetch(url, options = {}, retried = false) {
   return response;
 }
 
+function openSettings() {
+  el.settingsForm.reset();
+  el.settingsModal.classList.remove("hidden");
+  el.settingsModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => el.currentPassword.focus(), 0);
+}
+
+function closeSettings() {
+  el.settingsModal.classList.add("hidden");
+  el.settingsModal.setAttribute("aria-hidden", "true");
+}
+
+async function changePassword(event) {
+  event.preventDefault();
+  const currentPassword = el.currentPassword.value.trim();
+  const newPassword = el.newPassword.value.trim();
+  const confirmPassword = el.confirmPassword.value.trim();
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    toast("\uBE44\uBC00\uBC88\uD638\uB97C \uBAA8\uB450 \uC785\uB825\uD558\uC138\uC694");
+    return;
+  }
+  if (newPassword.length < 8) {
+    toast("\uC0C8 \uBE44\uBC00\uBC88\uD638\uB294 8\uC790 \uC774\uC0C1\uC73C\uB85C \uC785\uB825\uD558\uC138\uC694");
+    el.newPassword.focus();
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    toast("\uC0C8 \uBE44\uBC00\uBC88\uD638\uAC00 \uC11C\uB85C \uB2E4\uB985\uB2C8\uB2E4");
+    el.confirmPassword.focus();
+    return;
+  }
+
+  const submitButton = el.settingsForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    const response = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "password update failed");
+    closeSettings();
+    toast("\uBE44\uBC00\uBC88\uD638\uAC00 \uBCC0\uACBD\uB418\uC5C8\uC2B5\uB2C8\uB2E4");
+  } catch (error) {
+    toast(error.message || "\uBE44\uBC00\uBC88\uD638\uB97C \uBCC0\uACBD\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4");
+  } finally {
+    submitButton.disabled = false;
+  }
+}
 function closeDetail() {
   const member = selectedMember();
   if (member?.id.startsWith("new-")) {

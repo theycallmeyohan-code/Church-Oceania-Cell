@@ -1,4 +1,7 @@
 const PHOTO_VERSION = "20260704-photo-fix-2";
+const PASSWORD_HASH_KEY = "auth.passwordHash";
+const PASSWORD_ALGORITHM = "pbkdf2-sha256";
+const PASSWORD_ITERATIONS = 120000;
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -16,6 +19,7 @@ export async function onRequest(context) {
     if (path[0] === "photos") return handlePhotoRead(env, path.slice(1));
     if (!env.DB) return json({ error: "D1 binding DB is not configured" }, 503);
 
+    if (path[0] === "auth") return handleAuth(request, env, path);
     if (request.method === "GET" && path[0] === "bootstrap") return getBootstrap(env);
     if (path[0] === "members") return handleMembers(request, env, path);
     if (path[0] === "visit-notes") return handleVisitNotes(request, env);
@@ -56,6 +60,134 @@ async function getBootstrap(env) {
   });
 }
 
+async function handleAuth(request, env, path) {
+  if (request.method === "POST" && path[1] === "change-password") {
+    return changePassword(request, env);
+  }
+  return json({ error: "Not found" }, 404);
+}
+
+async function changePassword(request, env) {
+  const body = await safeJson(request);
+  const currentPassword = clean(body.currentPassword);
+  const newPassword = clean(body.newPassword);
+
+  if (!currentPassword || !newPassword) {
+    return json({ error: "\uD604\uC7AC \uBE44\uBC00\uBC88\uD638\uC640 \uC0C8 \uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD558\uC138\uC694" }, 400);
+  }
+  if (newPassword.length < 8) {
+    return json({ error: "\uC0C8 \uBE44\uBC00\uBC88\uD638\uB294 8\uC790 \uC774\uC0C1\uC73C\uB85C \uC785\uB825\uD558\uC138\uC694" }, 400);
+  }
+  if (newPassword === currentPassword) {
+    return json({ error: "\uC0C8 \uBE44\uBC00\uBC88\uD638\uB294 \uD604\uC7AC \uBE44\uBC00\uBC88\uD638\uC640 \uB2E4\uB974\uAC8C \uC785\uB825\uD558\uC138\uC694" }, 400);
+  }
+  if (!(await verifySitePassword(currentPassword, env))) {
+    return json({ error: "\uD604\uC7AC \uBE44\uBC00\uBC88\uD638\uAC00 \uB9DE\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4" }, 401);
+  }
+
+  await ensureAppSettingsTable(env);
+  const passwordHash = await createPasswordHash(newPassword);
+  const updatedAt = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).bind(PASSWORD_HASH_KEY, passwordHash, updatedAt).run();
+  await audit(env, request, "auth.password.update", "setting", PASSWORD_HASH_KEY, "", { updatedAt });
+  return json({ ok: true });
+}
+
+async function safeJson(request) {
+  try {
+    return await request.json();
+  } catch {
+    return {};
+  }
+}
+
+async function ensureAppSettingsTable(env) {
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)"
+  ).run();
+}
+
+async function verifySitePassword(password, env) {
+  const storedHash = await getStoredPasswordHash(env);
+  if (storedHash) return verifyPasswordHash(password, storedHash);
+  return Boolean(env.SITE_PASSWORD) && password === env.SITE_PASSWORD;
+}
+
+async function getStoredPasswordHash(env) {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_settings WHERE key = ?")
+      .bind(PASSWORD_HASH_KEY)
+      .first();
+    return typeof row?.value === "string" ? row.value : "";
+  } catch {
+    return "";
+  }
+}
+
+async function createPasswordHash(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const bits = await derivePasswordBits(password, salt, PASSWORD_ITERATIONS);
+  return `${PASSWORD_ALGORITHM}$${PASSWORD_ITERATIONS}$${base64Url(salt)}$${base64Url(bits)}`;
+}
+
+async function verifyPasswordHash(password, storedHash) {
+  const [algorithm, iterationsText, saltText, expectedText] = String(storedHash || "").split("$");
+  const iterations = Number(iterationsText);
+  if (algorithm !== PASSWORD_ALGORITHM || !Number.isFinite(iterations) || !saltText || !expectedText) {
+    return false;
+  }
+
+  const salt = base64UrlToBytes(saltText);
+  const expected = base64UrlToBytes(expectedText);
+  const actual = new Uint8Array(await derivePasswordBits(password, salt, iterations));
+  return timingSafeBytesEqual(actual, expected);
+}
+
+async function derivePasswordBits(password, salt, iterations) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  return crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    key,
+    256
+  );
+}
+
+function base64Url(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToBytes(value) {
+  const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function timingSafeBytesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    result |= a[index] ^ b[index];
+  }
+  return result === 0;
+}
 async function handleMembers(request, env, path) {
   const id = path[1];
 
