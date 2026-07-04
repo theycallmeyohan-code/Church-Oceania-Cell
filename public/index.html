@@ -23,7 +23,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="/favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="./styles.css?v=desktop-detail-scroll-1">
+    <link rel="stylesheet" href="./styles.css?v=sunday-attendance-1">
   </head>
   <body>
     <div class="app-shell">
@@ -45,6 +45,14 @@
               <path d="M16 2v4M8 2v4M3 10h18"></path>
             </svg>
             <span>심방일자</span>
+          </button>
+          <button class="icon-button text-button subtle attendance-button" id="attendanceBtn" type="button" title="주일출석체크" aria-label="주일출석체크">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 11h8M8 15h5"></path>
+              <rect x="4" y="5" width="16" height="16" rx="2"></rect>
+              <path d="M16 3v4M8 3v4M4 9h16M15 18l2 2 4-4"></path>
+            </svg>
+            <span>주일출석</span>
           </button>
           <button class="icon-button text-button subtle settings-button" id="settingsBtn" type="button" title="설정" aria-label="설정">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -211,6 +219,59 @@
 
 
 
+    <div class="modal-backdrop hidden" id="attendanceModal" aria-hidden="true">
+      <section class="attendance-dialog" aria-labelledby="attendanceTitle">
+        <div class="settings-head attendance-head">
+          <div>
+            <p class="eyebrow">주일출석체크</p>
+            <h2 id="attendanceTitle">주일출석</h2>
+          </div>
+          <button class="icon-button text-button subtle" id="attendanceCloseBtn" type="button" title="닫기" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12"></path>
+            </svg>
+            <span>닫기</span>
+          </button>
+        </div>
+
+        <div class="attendance-toolbar">
+          <button class="icon-button subtle" id="attendancePrevBtn" type="button" title="이전 주일" aria-label="이전 주일">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6"></path>
+            </svg>
+          </button>
+          <label class="attendance-date-field">
+            날짜
+            <input id="attendanceDate" type="date">
+          </label>
+          <button class="icon-button subtle" id="attendanceNextBtn" type="button" title="다음 주일" aria-label="다음 주일">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 18l6-6-6-6"></path>
+            </svg>
+          </button>
+          <div class="attendance-date-label" id="attendanceDateLabel"></div>
+        </div>
+
+        <div id="attendanceHistory" class="attendance-history"></div>
+        <div id="attendanceSummary" class="attendance-summary"></div>
+        <div id="attendanceCellStats" class="attendance-cell-stats"></div>
+        <div id="attendanceMemberGrid" class="attendance-member-grid"></div>
+
+        <div id="attendanceResults" class="attendance-results"></div>
+
+        <div class="button-row attendance-actions">
+          <button class="icon-button text-button primary" id="attendanceSaveBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+              <path d="M17 21v-8H7v8M7 3v5h8"></path>
+            </svg>
+            출석 저장
+          </button>
+          <button class="icon-button text-button subtle" id="attendanceClearBtn" type="button">전체 해제</button>
+        </div>
+      </section>
+    </div>
+
     <div class="modal-backdrop hidden" id="visitDatesModal" aria-hidden="true">
       <section class="visit-dates-dialog" aria-labelledby="visitDatesTitle">
         <div class="settings-head">
@@ -264,6 +325,6 @@
     </div>
     <div id="toast" class="toast" role="status"></div>
     <script src="./member-details.js?v=member-details-4"></script>
-    <script src="./app.js?v=desktop-detail-scroll-1"></script>
+    <script src="./app.js?v=sunday-attendance-1"></script>
   </body>
 </html>

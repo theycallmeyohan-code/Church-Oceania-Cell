@@ -23,6 +23,7 @@ export async function onRequest(context) {
     if (request.method === "GET" && path[0] === "bootstrap") return getBootstrap(env);
     if (path[0] === "members") return handleMembers(request, env, path);
     if (path[0] === "visit-notes") return handleVisitNotes(request, env);
+    if (path[0] === "sunday-attendance") return handleSundayAttendance(request, env);
     if (path[0] === "call-notes") return handleCallNotes(request, env);
 
     return json({ error: "Not found" }, 404);
@@ -281,6 +282,154 @@ async function handleVisitNotes(request, env) {
   return json(visit, 201);
 }
 
+async function handleSundayAttendance(request, env) {
+  if (request.method === "GET") {
+    const url = new URL(request.url);
+    const attendanceDate = clean(url.searchParams.get("date"));
+    return attendanceDate
+      ? getSundayAttendanceByDate(env, attendanceDate)
+      : listSundayAttendance(env);
+  }
+
+  if (request.method === "POST") {
+    await requireWriteAuth(request, env);
+    const body = await safeJson(request);
+    return saveSundayAttendance(request, env, body);
+  }
+
+  return json({ error: "Method not allowed" }, 405);
+}
+
+async function listSundayAttendance(env) {
+  const rows = await env.DB.prepare(
+    `SELECT s.id, s.attendance_date AS attendanceDate, s.label, s.created_at AS createdAt, s.updated_at AS updatedAt,
+      COUNT(r.member_id) AS totalCount,
+      COALESCE(SUM(CASE WHEN r.present = 1 THEN 1 ELSE 0 END), 0) AS presentCount
+     FROM sunday_attendance_sessions s
+     LEFT JOIN sunday_attendance_records r ON r.session_id = s.id
+     GROUP BY s.id, s.attendance_date, s.label, s.created_at, s.updated_at
+     ORDER BY s.attendance_date DESC
+     LIMIT 80`
+  ).all();
+  return json({ sessions: (rows.results || []).map(normalizeAttendanceSessionRow) });
+}
+
+async function getSundayAttendanceByDate(env, attendanceDateValue) {
+  const attendanceDate = normalizeDateValue(attendanceDateValue, "Attendance date is required");
+  const session = await env.DB.prepare(
+    `SELECT id, attendance_date AS attendanceDate, label, created_at AS createdAt, updated_at AS updatedAt
+     FROM sunday_attendance_sessions
+     WHERE attendance_date = ?`
+  ).bind(attendanceDate).first();
+
+  if (!session) return json({ session: null, records: [] });
+
+  const records = await getSundayAttendanceRecords(env, session.id);
+  return json({
+    session: attendanceSessionWithCounts(session, records),
+    records: records.map(attendanceRecordWithPhotoUrl)
+  });
+}
+
+async function saveSundayAttendance(request, env, body) {
+  const attendanceDate = normalizeDateValue(body.attendanceDate, "Attendance date is required");
+  const label = clean(body.label);
+  const presentMemberIds = new Set(
+    (Array.isArray(body.presentMemberIds) ? body.presentMemberIds : [])
+      .map(clean)
+      .filter(Boolean)
+  );
+  const now = new Date().toISOString();
+  const existing = await env.DB.prepare(
+    `SELECT id, attendance_date AS attendanceDate, label, created_at AS createdAt, updated_at AS updatedAt
+     FROM sunday_attendance_sessions
+     WHERE attendance_date = ?`
+  ).bind(attendanceDate).first();
+  const sessionId = existing?.id || crypto.randomUUID();
+  const createdAt = existing?.createdAt || now;
+
+  const members = await getActiveMembersForAttendance(env);
+  const records = members.map((member) => ({
+    sessionId,
+    memberId: member.id,
+    memberName: member.name,
+    memberTitle: member.title || "",
+    memberRole: member.role || "",
+    cellId: member.cellId,
+    cellName: member.cellName,
+    cellSortOrder: Number(member.cellSortOrder || 0),
+    photoKey: member.photoKey || "",
+    present: presentMemberIds.has(member.id) ? 1 : 0,
+    createdAt: now,
+    updatedAt: now
+  }));
+
+  const statements = [
+    existing
+      ? env.DB.prepare(
+        "UPDATE sunday_attendance_sessions SET label = ?, updated_at = ? WHERE id = ?"
+      ).bind(label, now, sessionId)
+      : env.DB.prepare(
+        `INSERT INTO sunday_attendance_sessions (id, attendance_date, label, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).bind(sessionId, attendanceDate, label, createdAt, now),
+    env.DB.prepare("DELETE FROM sunday_attendance_records WHERE session_id = ?").bind(sessionId),
+    ...records.map((record) => env.DB.prepare(
+      `INSERT INTO sunday_attendance_records
+        (session_id, member_id, member_name, member_title, member_role, cell_id, cell_name, cell_sort_order, photo_key, present, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      record.sessionId, record.memberId, record.memberName, record.memberTitle, record.memberRole,
+      record.cellId, record.cellName, record.cellSortOrder, record.photoKey, record.present,
+      record.createdAt, record.updatedAt
+    ))
+  ];
+
+  await env.DB.batch(statements);
+  const session = attendanceSessionWithCounts({
+    id: sessionId,
+    attendanceDate,
+    label,
+    createdAt,
+    updatedAt: now
+  }, records);
+
+  await audit(env, request, "sunday_attendance.save", "sunday_attendance_session", sessionId, existing || "", {
+    attendanceDate,
+    totalCount: records.length,
+    presentCount: session.presentCount
+  });
+
+  return json({
+    session,
+    records: records.map(attendanceRecordWithPhotoUrl)
+  }, existing ? 200 : 201);
+}
+
+async function getActiveMembersForAttendance(env) {
+  const rows = await env.DB.prepare(
+    `SELECT m.id, m.name, m.title, m.role, m.cell_id AS cellId, c.name AS cellName,
+      c.sort_order AS cellSortOrder, m.photo_key AS photoKey
+     FROM members m
+     JOIN cells c ON c.id = m.cell_id
+     WHERE COALESCE(m.archived_at, '') = ''
+     ORDER BY c.sort_order, m.role DESC, m.name`
+  ).all();
+  return rows.results || [];
+}
+
+async function getSundayAttendanceRecords(env, sessionId) {
+  const rows = await env.DB.prepare(
+    `SELECT session_id AS sessionId, member_id AS memberId, member_name AS memberName,
+      member_title AS memberTitle, member_role AS memberRole, cell_id AS cellId, cell_name AS cellName,
+      cell_sort_order AS cellSortOrder, photo_key AS photoKey, present, created_at AS createdAt, updated_at AS updatedAt
+     FROM sunday_attendance_records
+     WHERE session_id = ?
+     ORDER BY cell_sort_order, cell_name, member_name`
+  ).bind(sessionId).all();
+  return rows.results || [];
+}
+
 async function handleCallNotes(request, env) {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   await requireCallNoteAuth(request, env);
@@ -420,6 +569,50 @@ function cellsWithPhotoUrls(members) {
       ? `/api/photos/${encodeURIComponent(member.photoKey)}`
       : member.id?.startsWith("seed-") ? `/photos/${member.id}.jpg?v=${PHOTO_VERSION}` : ""
   }));
+}
+
+function attendanceSessionWithCounts(session, records) {
+  const totalCount = records.length;
+  const presentCount = records.filter((record) => Number(record.present) === 1).length;
+  return {
+    id: session.id,
+    attendanceDate: session.attendanceDate,
+    label: session.label || "",
+    totalCount,
+    presentCount,
+    absentCount: Math.max(totalCount - presentCount, 0),
+    createdAt: session.createdAt || "",
+    updatedAt: session.updatedAt || ""
+  };
+}
+
+function normalizeAttendanceSessionRow(row) {
+  const totalCount = Number(row.totalCount || 0);
+  const presentCount = Number(row.presentCount || 0);
+  return {
+    id: row.id,
+    attendanceDate: row.attendanceDate,
+    label: row.label || "",
+    totalCount,
+    presentCount,
+    absentCount: Math.max(totalCount - presentCount, 0),
+    createdAt: row.createdAt || "",
+    updatedAt: row.updatedAt || ""
+  };
+}
+
+function attendanceRecordWithPhotoUrl(record) {
+  return {
+    ...record,
+    present: Number(record.present) === 1,
+    photoUrl: record.photoKey ? `/api/photos/${encodeURIComponent(record.photoKey)}` : ""
+  };
+}
+
+function normalizeDateValue(value, message) {
+  const date = clean(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(message, 400);
+  return date;
 }
 
 async function requireWriteAuth(request, env) {

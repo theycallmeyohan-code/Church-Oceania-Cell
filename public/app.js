@@ -52,6 +52,10 @@ const state = {
   mode: "view",
   pendingPhotoData: null,
   selectedVisitDate: "",
+  attendanceSessions: [],
+  attendanceDate: "",
+  attendanceRecords: [],
+  attendancePresentIds: [],
   apiOnline: false
 };
 
@@ -72,7 +76,9 @@ async function init() {
 function bindElements() {
   [
     "workspace", "cellTabs", "searchInput", "showArchived", "memberGrid", "cellTitle", "cellMeta",
-    "activeCount", "archivedCount", "addMemberBtn", "visitDatesBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn",
+    "activeCount", "archivedCount", "addMemberBtn", "visitDatesBtn", "attendanceBtn", "attendanceModal", "attendanceCloseBtn", "attendancePrevBtn", "attendanceNextBtn",
+    "attendanceDate", "attendanceDateLabel", "attendanceHistory", "attendanceSummary", "attendanceCellStats", "attendanceMemberGrid", "attendanceResults",
+    "attendanceSaveBtn", "attendanceClearBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn",
     "currentPassword", "newPassword", "confirmPassword", "visitDatesModal", "visitDatesCloseBtn", "visitDateChips", "visitDateEntries", "detailPanel", "emptyDetail",
     "memberForm", "formMode", "formTitle", "backToListBtn", "closePanelBtn", "photoPreview",
     "photoInput", "memberName", "memberTitle", "memberCell",
@@ -99,6 +105,24 @@ function bindEvents() {
 
   el.addMemberBtn.addEventListener("click", startNewMember);
   el.visitDatesBtn.addEventListener("click", openVisitDates);
+  el.attendanceBtn.addEventListener("click", openSundayAttendance);
+  el.attendanceCloseBtn.addEventListener("click", closeSundayAttendance);
+  el.attendancePrevBtn.addEventListener("click", () => shiftSundayAttendanceDate(-7));
+  el.attendanceNextBtn.addEventListener("click", () => shiftSundayAttendanceDate(7));
+  el.attendanceDate.addEventListener("change", () => loadSundayAttendanceDate(el.attendanceDate.value));
+  el.attendanceSaveBtn.addEventListener("click", saveSundayAttendance);
+  el.attendanceClearBtn.addEventListener("click", clearSundayAttendance);
+  el.attendanceMemberGrid.addEventListener("click", (event) => {
+    const button = closestElement(event.target, "[data-attendance-member-id]");
+    if (button) toggleSundayAttendanceMember(button.dataset.attendanceMemberId);
+  });
+  el.attendanceHistory.addEventListener("click", (event) => {
+    const button = closestElement(event.target, "[data-attendance-date]");
+    if (button) loadSundayAttendanceDate(button.dataset.attendanceDate);
+  });
+  el.attendanceModal.addEventListener("click", (event) => {
+    if (event.target === el.attendanceModal) closeSundayAttendance();
+  });
   el.visitDatesCloseBtn.addEventListener("click", closeVisitDates);
   el.visitDatesModal.addEventListener("click", (event) => {
     if (event.target === el.visitDatesModal) closeVisitDates();
@@ -134,6 +158,7 @@ async function loadState() {
   state.cells = local.cells;
   state.members = local.members;
   state.visits = local.visits;
+  state.attendanceSessions = local.attendanceSessions;
   state.selectedCellId = local.selectedCellId || "";
   state.showArchived = Boolean(local.showArchived);
   el.showArchived.checked = state.showArchived;
@@ -165,6 +190,7 @@ function readLocal() {
         cells: saved.cells,
         members: saved.members,
         visits: saved.visits || [],
+        attendanceSessions: saved.attendanceSessions || [],
         selectedCellId: saved.selectedCellId || "",
         showArchived: saved.showArchived || false
       };
@@ -179,6 +205,7 @@ function readLocal() {
     cells: structuredClone(INITIAL_CELLS),
     members: initialMembers,
     visits: [],
+    attendanceSessions: [],
     selectedCellId: INITIAL_CELLS[0]?.id || "",
     showArchived: false
   };
@@ -253,6 +280,7 @@ function persist() {
     cells: state.cells,
     members: state.members,
     visits: state.visits,
+    attendanceSessions: state.attendanceSessions,
     selectedCellId: state.selectedCellId,
     showArchived: state.showArchived
   }));
@@ -750,6 +778,341 @@ async function writeFetch(url, options = {}, retried = false) {
   return response;
 }
 
+async function openSundayAttendance() {
+  state.attendanceDate = state.attendanceDate || nearestSundayDate();
+  el.attendanceDate.value = state.attendanceDate;
+  el.attendanceModal.classList.remove("hidden");
+  el.attendanceModal.setAttribute("aria-hidden", "false");
+  renderSundayAttendance();
+  await loadSundayAttendanceSessions();
+  await loadSundayAttendanceDate(state.attendanceDate);
+}
+
+function closeSundayAttendance() {
+  el.attendanceModal.classList.add("hidden");
+  el.attendanceModal.setAttribute("aria-hidden", "true");
+}
+
+async function loadSundayAttendanceSessions() {
+  if (state.apiOnline) {
+    try {
+      const response = await fetch("/api/sunday-attendance", { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error("attendance history failed");
+      const data = await response.json();
+      state.attendanceSessions = Array.isArray(data.sessions) ? data.sessions : [];
+      renderAttendanceHistory();
+      return;
+    } catch {
+      state.apiOnline = false;
+    }
+  }
+  renderAttendanceHistory();
+}
+
+async function loadSundayAttendanceDate(dateValue) {
+  const date = normalizeDateInput(dateValue) || nearestSundayDate();
+  state.attendanceDate = date;
+  el.attendanceDate.value = date;
+
+  if (state.apiOnline) {
+    try {
+      const response = await fetch(`/api/sunday-attendance?date=${encodeURIComponent(date)}`, {
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) throw new Error("attendance detail failed");
+      const data = await response.json();
+      state.attendanceRecords = Array.isArray(data.records) ? data.records : [];
+      state.attendancePresentIds = state.attendanceRecords
+        .filter((record) => record.present)
+        .map((record) => record.memberId);
+      renderSundayAttendance();
+      return;
+    } catch {
+      state.apiOnline = false;
+    }
+  }
+
+  const localSession = state.attendanceSessions.find((session) => session.attendanceDate === date);
+  state.attendanceRecords = Array.isArray(localSession?.records) ? localSession.records : [];
+  state.attendancePresentIds = state.attendanceRecords
+    .filter((record) => record.present)
+    .map((record) => record.memberId);
+  renderSundayAttendance();
+}
+
+function renderSundayAttendance() {
+  const date = state.attendanceDate || nearestSundayDate();
+  const members = attendanceMembersForSelectedDate();
+  const presentIds = new Set(state.attendancePresentIds);
+  const presentCount = members.filter((member) => presentIds.has(member.id)).length;
+  const totalCount = members.length;
+
+  el.attendanceDate.value = date;
+  el.attendanceDateLabel.textContent = formatKoreanDateLabel(date);
+  el.attendanceSummary.innerHTML = `<strong>출석 ${presentCount}명</strong><span>전체 ${totalCount}명 · 결석 ${Math.max(totalCount - presentCount, 0)}명</span>`;
+  renderAttendanceHistory();
+  renderAttendanceCellStats(members, presentIds);
+  renderAttendanceMemberGrid(members, presentIds);
+  renderAttendanceResults(members, presentIds);
+}
+
+function renderAttendanceHistory() {
+  const sessions = (state.attendanceSessions || [])
+    .slice()
+    .sort((a, b) => String(b.attendanceDate || "").localeCompare(String(a.attendanceDate || "")))
+    .slice(0, 12);
+
+  if (!sessions.length) {
+    el.attendanceHistory.innerHTML = '<p class="attendance-empty">저장된 주일출석 기록이 없습니다.</p>';
+    return;
+  }
+
+  el.attendanceHistory.innerHTML = sessions.map((session) => {
+    const active = session.attendanceDate === state.attendanceDate ? "active" : "";
+    return `<button class="attendance-history-chip ${active}" data-attendance-date="${escapeAttribute(session.attendanceDate)}" type="button">
+      <strong>${escapeHtml(formatShortDateLabel(session.attendanceDate))}</strong>
+      <span>${Number(session.presentCount || 0)}/${Number(session.totalCount || 0)}명</span>
+    </button>`;
+  }).join("");
+}
+
+function renderAttendanceCellStats(members, presentIds) {
+  const groups = groupedAttendanceMembers(members, presentIds);
+  if (!groups.length) {
+    el.attendanceCellStats.innerHTML = "";
+    return;
+  }
+
+  el.attendanceCellStats.innerHTML = groups.map((group) => `<span class="attendance-cell-stat">
+    <strong>${escapeHtml(group.cellName)}</strong>
+    ${group.present}/${group.total}명
+  </span>`).join("");
+}
+
+function renderAttendanceMemberGrid(members, presentIds) {
+  if (!members.length) {
+    el.attendanceMemberGrid.innerHTML = '<p class="attendance-empty">출석 체크할 성도가 없습니다.</p>';
+    return;
+  }
+
+  el.attendanceMemberGrid.innerHTML = members.map((member) => {
+    const present = presentIds.has(member.id);
+    return `<button class="attendance-member-card ${present ? "present" : ""}" data-attendance-member-id="${escapeAttribute(member.id)}" type="button" aria-pressed="${present ? "true" : "false"}">
+      ${portraitHtml(member)}
+      <span>
+        <strong>${escapeHtml(member.name)}</strong>
+        <small>${escapeHtml([member.cellName, member.title].filter(Boolean).join(" · "))}</small>
+      </span>
+      <em>${present ? "출석" : "결석"}</em>
+    </button>`;
+  }).join("");
+}
+
+function renderAttendanceResults(members, presentIds) {
+  const presentMembers = members.filter((member) => presentIds.has(member.id));
+  const absentMembers = members.filter((member) => !presentIds.has(member.id));
+
+  el.attendanceResults.innerHTML = `
+    <section class="attendance-result-column">
+      <h3>출석 ${presentMembers.length}명</h3>
+      ${attendanceNamesByCellHtml(presentMembers)}
+    </section>
+    <section class="attendance-result-column">
+      <h3>결석 ${absentMembers.length}명</h3>
+      ${attendanceNamesByCellHtml(absentMembers)}
+    </section>`;
+}
+
+function attendanceNamesByCellHtml(members) {
+  if (!members.length) return '<p class="attendance-empty">명단 없음</p>';
+  return groupedAttendanceMembers(members, new Set(members.map((member) => member.id)))
+    .map((group) => `<div class="attendance-name-group">
+      <strong>${escapeHtml(group.cellName)}</strong>
+      <span>${group.members.map((member) => escapeHtml(member.name)).join(", ")}</span>
+    </div>`)
+    .join("");
+}
+
+function groupedAttendanceMembers(members, presentIds) {
+  const groups = new Map();
+  members.forEach((member) => {
+    const key = member.cellId || member.cellName || "unknown";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        cellId: member.cellId || key,
+        cellName: member.cellName || memberCellLabel(member) || "셀 없음",
+        sortOrder: Number.isFinite(member.cellSortOrder) ? member.cellSortOrder : cellSortRank(member.cellId),
+        total: 0,
+        present: 0,
+        members: []
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    group.present += presentIds.has(member.id) ? 1 : 0;
+    group.members.push(member);
+  });
+  return Array.from(groups.values()).sort((a, b) => {
+    const sortDiff = a.sortOrder - b.sortOrder;
+    if (sortDiff) return sortDiff;
+    return a.cellName.localeCompare(b.cellName, "ko-KR", { numeric: true });
+  });
+}
+
+function attendanceMembersForSelectedDate() {
+  if (state.attendanceRecords.length) {
+    return state.attendanceRecords
+      .map(attendanceRecordToMember)
+      .sort(compareAttendanceMembers);
+  }
+  return activeMembersForAttendance();
+}
+
+function activeMembersForAttendance() {
+  return state.members
+    .filter((member) => !member.archivedAt)
+    .map((member) => ({
+      ...member,
+      cellName: state.cells.find((cell) => cell.id === member.cellId)?.name || memberCellLabel(member),
+      cellSortOrder: cellSortRank(member.cellId)
+    }))
+    .sort(compareAttendanceMembers);
+}
+
+function attendanceRecordToMember(record) {
+  const current = state.members.find((member) => member.id === record.memberId);
+  return {
+    id: record.memberId,
+    cellId: record.cellId,
+    cellName: record.cellName,
+    name: record.memberName,
+    title: record.memberTitle || "",
+    role: record.memberRole || "",
+    cellSortOrder: Number(record.cellSortOrder || cellSortRank(record.cellId)),
+    photoUrl: current?.photoUrl || record.photoUrl || "",
+    photoKey: current?.photoKey || record.photoKey || "",
+    archivedAt: ""
+  };
+}
+
+function compareAttendanceMembers(a, b) {
+  const aCellSort = Number.isFinite(a.cellSortOrder) ? a.cellSortOrder : cellSortRank(a.cellId);
+  const bCellSort = Number.isFinite(b.cellSortOrder) ? b.cellSortOrder : cellSortRank(b.cellId);
+  const cellDiff = aCellSort - bCellSort;
+  if (cellDiff) return cellDiff;
+  const roleDiff = roleSortRank(a.role) - roleSortRank(b.role);
+  if (roleDiff) return roleDiff;
+  return compareKoreanNames(a.name, b.name);
+}
+
+function toggleSundayAttendanceMember(memberId) {
+  const presentIds = new Set(state.attendancePresentIds);
+  if (presentIds.has(memberId)) presentIds.delete(memberId);
+  else presentIds.add(memberId);
+  state.attendancePresentIds = Array.from(presentIds);
+  renderSundayAttendance();
+}
+
+function clearSundayAttendance() {
+  state.attendancePresentIds = [];
+  renderSundayAttendance();
+}
+
+function shiftSundayAttendanceDate(dayOffset) {
+  const current = parseDateValue(state.attendanceDate) || parseDateValue(nearestSundayDate());
+  current.setDate(current.getDate() + dayOffset);
+  loadSundayAttendanceDate(localDateString(current));
+}
+
+async function saveSundayAttendance() {
+  const attendanceDate = normalizeDateInput(el.attendanceDate.value) || state.attendanceDate || nearestSundayDate();
+  if (!isSundayDate(attendanceDate)) {
+    const ok = confirm("선택한 날짜가 주일이 아닙니다. 그래도 저장할까요?");
+    if (!ok) return;
+  }
+
+  const presentMemberIds = Array.from(new Set(state.attendancePresentIds));
+  el.attendanceSaveBtn.disabled = true;
+  try {
+    if (state.apiOnline) {
+      const response = await writeFetch("/api/sunday-attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attendanceDate,
+          label: formatKoreanDateLabel(attendanceDate),
+          presentMemberIds
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "attendance save failed");
+      state.attendanceRecords = Array.isArray(data.records) ? data.records : [];
+      state.attendancePresentIds = state.attendanceRecords
+        .filter((record) => record.present)
+        .map((record) => record.memberId);
+      upsertAttendanceSession(data.session, state.attendanceRecords);
+    } else {
+      saveSundayAttendanceLocally(attendanceDate, presentMemberIds);
+    }
+    persist();
+    renderSundayAttendance();
+    toast("주일출석이 저장되었습니다");
+  } catch (error) {
+    toast(error.message || "주일출석을 저장하지 못했습니다");
+  } finally {
+    el.attendanceSaveBtn.disabled = false;
+  }
+}
+
+function saveSundayAttendanceLocally(attendanceDate, presentMemberIds) {
+  const presentSet = new Set(presentMemberIds);
+  const now = new Date().toISOString();
+  const members = activeMembersForAttendance();
+  const records = members.map((member) => ({
+    sessionId: `local-attendance-${attendanceDate}`,
+    memberId: member.id,
+    memberName: member.name,
+    memberTitle: member.title || "",
+    memberRole: member.role || "",
+    cellId: member.cellId,
+    cellName: member.cellName || memberCellLabel(member),
+    cellSortOrder: member.cellSortOrder || cellSortRank(member.cellId),
+    photoKey: member.photoKey || "",
+    photoUrl: member.photoUrl || "",
+    present: presentSet.has(member.id),
+    createdAt: now,
+    updatedAt: now
+  }));
+  const session = {
+    id: `local-attendance-${attendanceDate}`,
+    attendanceDate,
+    label: formatKoreanDateLabel(attendanceDate),
+    totalCount: records.length,
+    presentCount: records.filter((record) => record.present).length,
+    absentCount: records.filter((record) => !record.present).length,
+    createdAt: now,
+    updatedAt: now
+  };
+  state.attendanceRecords = records;
+  state.attendancePresentIds = records.filter((record) => record.present).map((record) => record.memberId);
+  upsertAttendanceSession(session, records);
+}
+
+function upsertAttendanceSession(session, records = []) {
+  if (!session?.attendanceDate) return;
+  const savedSession = {
+    ...session,
+    records,
+    totalCount: Number(session.totalCount || records.length || 0),
+    presentCount: Number(session.presentCount || records.filter((record) => record.present).length || 0)
+  };
+  savedSession.absentCount = Math.max(savedSession.totalCount - savedSession.presentCount, 0);
+  state.attendanceSessions = [
+    savedSession,
+    ...state.attendanceSessions.filter((item) => item.attendanceDate !== session.attendanceDate)
+  ].sort((a, b) => String(b.attendanceDate || "").localeCompare(String(a.attendanceDate || "")));
+}
+
 function openVisitDates() {
   state.selectedVisitDate = state.selectedVisitDate || latestVisitDate() || today();
   renderVisitDates();
@@ -995,6 +1358,55 @@ function calculateAge(dateValue) {
   return age >= 0 ? age : NaN;
 }
 
+function nearestSundayDate() {
+  const date = new Date();
+  const day = date.getDay();
+  const offset = day === 0 ? 0 : (day <= 3 ? -day : 7 - day);
+  date.setDate(date.getDate() + offset);
+  return localDateString(date);
+}
+
+function normalizeDateInput(value) {
+  const date = parseDateValue(value);
+  return date ? localDateString(date) : "";
+}
+
+function parseDateValue(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return date;
+}
+
+function localDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatKoreanDateLabel(dateValue) {
+  const date = parseDateValue(dateValue);
+  if (!date) return "";
+  const weekdays = ["주일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${weekdays[date.getDay()]}`;
+}
+
+function formatShortDateLabel(dateValue) {
+  const date = parseDateValue(dateValue);
+  if (!date) return dateValue || "";
+  return `${date.getMonth() + 1}/${date.getDate()} 주일`;
+}
+
+function isSundayDate(dateValue) {
+  const date = parseDateValue(dateValue);
+  return Boolean(date && date.getDay() === 0);
+}
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1010,6 +1422,10 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll("`", "&#096;");
+}
+
+function closestElement(target, selector) {
+  return target instanceof Element ? target.closest(selector) : null;
 }
 
 function toast(message) {
