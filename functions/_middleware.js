@@ -16,9 +16,14 @@ export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
 
-  if (!env.SITE_PASSWORD) return next();
   if (request.method === "OPTIONS") return next();
   if (PUBLIC_AUTH_ASSETS.has(url.pathname)) return next();
+  if (!env.SITE_PASSWORD) {
+    if (url.pathname.startsWith("/api/")) {
+      return json({ error: "Login is not configured" }, 503);
+    }
+    return loginPage("\uB85C\uADF8\uC778 \uC124\uC815\uC774 \uC544\uC9C1 \uBC18\uC601\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.", 503);
+  }
 
   if (url.pathname === "/__auth/login") {
     return request.method === "POST" ? login(request, env) : loginPage();
