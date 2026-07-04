@@ -43,7 +43,7 @@ async function getBootstrap(env) {
   ).all();
   const members = await env.DB.prepare(
     `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
-      photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
+      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
      FROM members
      ORDER BY cell_id, role DESC, name`
   ).all();
@@ -198,11 +198,11 @@ async function handleMembers(request, env, path) {
     const member = normalizeMember(body, crypto.randomUUID());
     await env.DB.prepare(
       `INSERT INTO members
-        (id, cell_id, name, title, role, phone, home_phone, birth, registered_at, address, memo, photo_key, archived_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, cell_id, name, title, role, phone, home_phone, birth, registered_at, address, memo, long_absent, photo_key, archived_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       member.id, member.cellId, member.name, member.title, member.role, member.phone, member.homePhone, member.birth, member.registeredAt,
-      member.address, member.memo, member.photoKey, member.archivedAt, member.createdAt, member.updatedAt
+      member.address, member.memo, member.longAbsent, member.photoKey, member.archivedAt, member.createdAt, member.updatedAt
     ).run();
     await audit(env, request, "member.create", "member", member.id, "", member);
     return json(cellsWithPhotoUrls([member])[0], 201);
@@ -219,11 +219,11 @@ async function handleMembers(request, env, path) {
     await env.DB.prepare(
       `UPDATE members
        SET cell_id = ?, name = ?, title = ?, role = ?, phone = ?, home_phone = ?, birth = ?, registered_at = ?, address = ?,
-        memo = ?, photo_key = ?, archived_at = ?, updated_at = ?
+        memo = ?, long_absent = ?, photo_key = ?, archived_at = ?, updated_at = ?
        WHERE id = ?`
     ).bind(
       member.cellId, member.name, member.title, member.role, member.phone, member.homePhone, member.birth, member.registeredAt, member.address,
-      member.memo, member.photoKey, member.archivedAt, member.updatedAt, id
+      member.memo, member.longAbsent, member.photoKey, member.archivedAt, member.updatedAt, id
     ).run();
     await audit(env, request, "member.update", "member", id, previous, member);
     return json(cellsWithPhotoUrls([member])[0]);
@@ -355,6 +355,7 @@ async function saveSundayAttendance(request, env, body) {
     memberName: member.name,
     memberTitle: member.title || "",
     memberRole: member.role || "",
+    memberLongAbsent: member.longAbsent ? 1 : 0,
     cellId: member.cellId,
     cellName: member.cellName,
     cellSortOrder: Number(member.cellSortOrder || 0),
@@ -376,11 +377,11 @@ async function saveSundayAttendance(request, env, body) {
     env.DB.prepare("DELETE FROM sunday_attendance_records WHERE session_id = ?").bind(sessionId),
     ...records.map((record) => env.DB.prepare(
       `INSERT INTO sunday_attendance_records
-        (session_id, member_id, member_name, member_title, member_role, cell_id, cell_name, cell_sort_order, photo_key, present, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (session_id, member_id, member_name, member_title, member_role, member_long_absent, cell_id, cell_name, cell_sort_order, photo_key, present, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       record.sessionId, record.memberId, record.memberName, record.memberTitle, record.memberRole,
-      record.cellId, record.cellName, record.cellSortOrder, record.photoKey, record.present,
+      record.memberLongAbsent, record.cellId, record.cellName, record.cellSortOrder, record.photoKey, record.present,
       record.createdAt, record.updatedAt
     ))
   ];
@@ -409,11 +410,11 @@ async function saveSundayAttendance(request, env, body) {
 async function getActiveMembersForAttendance(env) {
   const rows = await env.DB.prepare(
     `SELECT m.id, m.name, m.title, m.role, m.cell_id AS cellId, c.name AS cellName,
-      c.sort_order AS cellSortOrder, m.photo_key AS photoKey
+      c.sort_order AS cellSortOrder, m.long_absent AS longAbsent, m.photo_key AS photoKey
      FROM members m
      JOIN cells c ON c.id = m.cell_id
      WHERE COALESCE(m.archived_at, '') = ''
-     ORDER BY c.sort_order, m.role DESC, m.name`
+     ORDER BY c.sort_order, m.long_absent, m.role DESC, m.name`
   ).all();
   return rows.results || [];
 }
@@ -421,7 +422,7 @@ async function getActiveMembersForAttendance(env) {
 async function getSundayAttendanceRecords(env, sessionId) {
   const rows = await env.DB.prepare(
     `SELECT session_id AS sessionId, member_id AS memberId, member_name AS memberName,
-      member_title AS memberTitle, member_role AS memberRole, cell_id AS cellId, cell_name AS cellName,
+      member_title AS memberTitle, member_role AS memberRole, member_long_absent AS memberLongAbsent, cell_id AS cellId, cell_name AS cellName,
       cell_sort_order AS cellSortOrder, photo_key AS photoKey, present, created_at AS createdAt, updated_at AS updatedAt
      FROM sunday_attendance_records
      WHERE session_id = ?
@@ -507,7 +508,7 @@ async function handlePhotoRead(env, keyParts) {
 async function getMember(env, id) {
   return env.DB.prepare(
     `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
-      photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
+      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
      FROM members WHERE id = ?`
   ).bind(id).first();
 }
@@ -517,7 +518,7 @@ async function findMemberForCall(env, body) {
   if (!body.phone) return null;
   return env.DB.prepare(
     `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
-      photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
+      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
      FROM members
      WHERE replace(replace(replace(phone, '-', ''), ' ', ''), '.', '') = ?
         OR replace(replace(replace(home_phone, '-', ''), ' ', ''), '.', '') = ?
@@ -539,6 +540,7 @@ function normalizeMember(body, fallbackId) {
     registeredAt: clean(body.registeredAt),
     address: clean(body.address),
     memo: clean(body.memo),
+    longAbsent: truthy(body.longAbsent) ? 1 : 0,
     photoKey: clean(body.photoKey),
     archivedAt: clean(body.archivedAt),
     createdAt: clean(body.createdAt) || now,
@@ -565,6 +567,7 @@ function normalizeVisit(body) {
 function cellsWithPhotoUrls(members) {
   return members.map((member) => ({
     ...member,
+    longAbsent: truthy(member.longAbsent),
     photoUrl: member.photoKey
       ? `/api/photos/${encodeURIComponent(member.photoKey)}`
       : member.id?.startsWith("seed-") ? `/photos/${member.id}.jpg?v=${PHOTO_VERSION}` : ""
@@ -605,6 +608,7 @@ function attendanceRecordWithPhotoUrl(record) {
   return {
     ...record,
     present: Number(record.present) === 1,
+    memberLongAbsent: truthy(record.memberLongAbsent),
     photoUrl: record.photoKey ? `/api/photos/${encodeURIComponent(record.photoKey)}` : ""
   };
 }
@@ -645,6 +649,10 @@ function bearer(request) {
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+function truthy(value) {
+  return value === true || value === 1 || value === "1" || value === "true";
 }
 
 function json(body, status = 200) {

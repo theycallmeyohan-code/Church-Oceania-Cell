@@ -270,6 +270,53 @@ h1 {
   background: var(--line-strong);
 }
 
+.member-grid.sectioned {
+  grid-template-columns: 1fr;
+  gap: 18px;
+  border: 0;
+  background: transparent;
+}
+
+.member-section {
+  display: grid;
+  gap: 8px;
+}
+
+.member-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 2px;
+}
+
+.member-section-head strong {
+  color: var(--primary-strong);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.member-section-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.member-section.long-absent {
+  padding-top: 14px;
+  border-top: 2px solid var(--line-strong);
+}
+
+.member-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 0;
+  border-left: 1px solid var(--line-strong);
+  border-top: 1px solid var(--line-strong);
+  background: var(--line-strong);
+}
+
 .member-card {
   min-height: 196px;
   display: grid;
@@ -291,6 +338,15 @@ h1 {
 
 .member-card.archived {
   opacity: 0.52;
+}
+
+.member-card.long-absent {
+  background: #fff8ec;
+}
+
+.member-card.long-absent:hover,
+.member-card.long-absent.selected {
+  background: #f6ecd9;
 }
 
 .portrait {
@@ -443,6 +499,27 @@ h1 {
   gap: 14px;
   align-items: start;
   margin: 14px 0 12px;
+}
+
+label.check-field {
+  min-height: 42px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fffdf8;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+label.check-field input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
 }
 
 .photo-actions {
@@ -851,6 +928,17 @@ button:disabled {
   font-weight: 800;
 }
 
+.long-absent-chip {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #f1dfbd;
+  color: #6f4c18;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .attendance-history-chip.active {
   border-color: var(--primary);
   background: #e8f1ed;
@@ -902,9 +990,79 @@ button:disabled {
 
 .attendance-member-grid {
   display: grid;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.attendance-cell-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 2px solid var(--line-strong);
+}
+
+.attendance-cell-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.attendance-cell-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.attendance-cell-section-head strong {
+  color: var(--primary-strong);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.attendance-cell-section-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.attendance-cell-members {
+  display: grid;
+  gap: 10px;
+}
+
+.attendance-member-subsection {
+  display: grid;
+  gap: 8px;
+}
+
+.attendance-member-subsection.long-absent {
+  padding-top: 10px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.attendance-member-subsection-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.attendance-member-subsection-title strong {
+  color: #6f4c18;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.attendance-member-subsection-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.attendance-member-subsection-grid {
+  display: grid;
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
   gap: 8px;
-  margin-bottom: 14px;
 }
 
 .attendance-member-card {
@@ -930,6 +1088,16 @@ button:disabled {
   border-color: var(--primary);
   background: #e8f1ed;
   box-shadow: inset 0 0 0 1px rgba(39, 106, 99, 0.2);
+}
+
+.attendance-member-card.long-absent {
+  border-color: #d7bd8d;
+  background: #fff8ec;
+}
+
+.attendance-member-card.long-absent.present {
+  border-color: var(--primary);
+  background: #e8f1ed;
 }
 
 .attendance-member-card strong {
@@ -1008,6 +1176,11 @@ button:disabled {
 
 .attendance-name-group span {
   line-height: 1.5;
+}
+
+.attendance-name-group .attendance-long-absent-names {
+  color: #6f4c18;
+  font-weight: 900;
 }
 
 .attendance-empty {
@@ -1269,6 +1442,10 @@ button:disabled {
     grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
   }
 
+  .member-section-grid {
+    grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
+  }
+
   .member-card {
     min-height: 178px;
     grid-template-rows: 120px auto;
@@ -1377,7 +1554,7 @@ button:disabled {
     font-size: 16px;
   }
 
-  .attendance-member-grid {
+  .attendance-member-subsection-grid {
     grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
     gap: 7px;
   }

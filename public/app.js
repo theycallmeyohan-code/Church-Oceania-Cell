@@ -82,7 +82,7 @@ function bindElements() {
     "currentPassword", "newPassword", "confirmPassword", "visitDatesModal", "visitDatesCloseBtn", "visitDateChips", "visitDateEntries", "detailPanel", "emptyDetail",
     "memberForm", "formMode", "formTitle", "backToListBtn", "closePanelBtn", "photoPreview",
     "photoInput", "memberName", "memberTitle", "memberCell",
-    "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberMemo",
+    "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
     "visitType", "visitSummary", "visitPrayer", "visitAction", "addVisitBtn", "visitList",
     "toast"
@@ -363,14 +363,41 @@ function renderMembers() {
   if (!visible.length) {
     const emptyTitle = isSearching ? "\uAC80\uC0C9 \uACB0\uACFC \uC5C6\uC74C" : "\uACB0\uACFC \uC5C6\uC74C";
     const emptyHint = isSearching ? "\uC774\uB984, \uC804\uD654, \uC9D1\uC804\uD654, \uAC00\uC871/\uC790\uB140\uBA54\uBAA8\uB97C \uD655\uC778\uD558\uC138\uC694" : "\uAC80\uC0C9 \uC870\uAC74\uC744 \uC870\uC815\uD558\uC138\uC694";
+    el.memberGrid.classList.remove("sectioned");
     el.memberGrid.innerHTML = `<div class="member-card"><span class="member-name">${emptyTitle}</span><span class="member-sub">${emptyHint}</span></div>`;
     return;
   }
 
-  el.memberGrid.innerHTML = visible.map((member) => memberCardHtml(member, isSearching)).join("");
+  el.memberGrid.classList.toggle("sectioned", !isSearching && visible.some((member) => member.longAbsent));
+  el.memberGrid.innerHTML = memberGridHtml(visible, isSearching);
   el.memberGrid.querySelectorAll("[data-member-id]").forEach((button) => {
     button.addEventListener("click", () => selectMember(button.dataset.memberId));
   });
+}
+
+function memberGridHtml(members, isSearching) {
+  if (isSearching) return members.map((member) => memberCardHtml(member, true)).join("");
+
+  const regularMembers = members.filter((member) => !member.longAbsent);
+  const longAbsentMembers = members.filter((member) => member.longAbsent);
+  if (!longAbsentMembers.length) return regularMembers.map((member) => memberCardHtml(member)).join("");
+
+  return [
+    regularMembers.length ? memberSectionHtml("셀원", regularMembers) : "",
+    memberSectionHtml("장기결석자", longAbsentMembers, "long-absent")
+  ].join("");
+}
+
+function memberSectionHtml(title, members, extraClass = "") {
+  return `<section class="member-section ${extraClass}">
+    <div class="member-section-head">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${members.length}명</span>
+    </div>
+    <div class="member-section-grid">
+      ${members.map((member) => memberCardHtml(member)).join("")}
+    </div>
+  </section>`;
 }
 
 function compareMembersForDisplay(a, b, isSearching = false) {
@@ -422,7 +449,8 @@ function memberMatchesSearch(member, rawQuery) {
     member.address,
     member.memo,
     memberCellLabel(member),
-    memberRoleLabel(member)
+    memberRoleLabel(member),
+    member.longAbsent ? "장기결석자 장기결석" : ""
   ];
   const searchText = normalizeSearchText(fields.join(" "));
   if (textQuery && searchText.includes(textQuery)) return true;
@@ -454,13 +482,14 @@ function memberRoleLabel(member) {
 function memberCardHtml(member, showCell = false) {
   const role = memberRoleLabel(member);
   const cellLabel = showCell ? memberCellLabel(member) : "";
-  return `<button class="member-card ${member.id === state.selectedMemberId ? "selected" : ""} ${member.archivedAt ? "archived" : ""}" data-member-id="${member.id}" type="button">
+  return `<button class="member-card ${member.id === state.selectedMemberId ? "selected" : ""} ${member.archivedAt ? "archived" : ""} ${member.longAbsent ? "long-absent" : ""}" data-member-id="${member.id}" type="button">
     ${portraitHtml(member)}
     <span>
       <span class="member-name">${escapeHtml(member.name)}</span>
       <span class="member-sub">${escapeHtml(member.title || "\uC9C1\uBD84 \uC5C6\uC74C")}</span>
       ${cellLabel ? `<span class="member-cell">${escapeHtml(cellLabel)}</span>` : ""}
       ${role && member.role ? `<span class="role-chip">${escapeHtml(role)}</span>` : ""}
+      ${member.longAbsent ? '<span class="long-absent-chip">장기결석</span>' : ""}
     </span>
   </button>`;
 }
@@ -514,6 +543,7 @@ function renderDetail() {
   el.memberAge.value = birth.date ? ageLabel(birth.date) : (birth.age ? birth.age + "\uC138" : "");
   renderLunarMarker(birth.marker);
   el.memberAddress.value = member.address || "";
+  el.memberLongAbsent.checked = Boolean(member.longAbsent);
   el.memberMemo.value = member.memo || "";
   el.archiveBtn.classList.toggle("hidden", Boolean(member.archivedAt));
   el.restoreBtn.classList.toggle("hidden", !member.archivedAt);
@@ -536,6 +566,7 @@ function startNewMember() {
     registeredAt: "",
     address: "",
     memo: "",
+    longAbsent: false,
     photoUrl: "",
     photoKey: "",
     archivedAt: "",
@@ -566,6 +597,7 @@ async function saveMember(event) {
     birth: buildBirthValue(el.memberBirth.value, member.birth),
     registeredAt: el.memberRegisteredAt.value.trim(),
     address: el.memberAddress.value.trim(),
+    longAbsent: el.memberLongAbsent.checked,
     memo: el.memberMemo.value.trim()
   };
 
@@ -895,17 +927,49 @@ function renderAttendanceMemberGrid(members, presentIds) {
     return;
   }
 
-  el.attendanceMemberGrid.innerHTML = members.map((member) => {
-    const present = presentIds.has(member.id);
-    return `<button class="attendance-member-card ${present ? "present" : ""}" data-attendance-member-id="${escapeAttribute(member.id)}" type="button" aria-pressed="${present ? "true" : "false"}">
-      ${portraitHtml(member)}
-      <span>
-        <strong>${escapeHtml(member.name)}</strong>
-        <small>${escapeHtml([member.cellName, member.title].filter(Boolean).join(" · "))}</small>
-      </span>
-      <em>${present ? "출석" : "결석"}</em>
-    </button>`;
-  }).join("");
+  el.attendanceMemberGrid.innerHTML = groupedAttendanceMembers(members, presentIds).map((group) => `
+    <section class="attendance-cell-section">
+      <div class="attendance-cell-section-head">
+        <strong>${escapeHtml(group.cellName)}</strong>
+        <span>${group.present}/${group.total}명</span>
+      </div>
+      <div class="attendance-cell-members">
+        ${attendanceCellMembersHtml(group.members, presentIds)}
+      </div>
+    </section>`).join("");
+}
+
+function attendanceCellMembersHtml(members, presentIds) {
+  const regularMembers = members.filter((member) => !member.longAbsent);
+  const longAbsentMembers = members.filter((member) => member.longAbsent);
+  const sections = [];
+  if (regularMembers.length) sections.push(`<div class="attendance-member-subsection">
+    <div class="attendance-member-subsection-grid">
+      ${regularMembers.map((member) => attendanceMemberCardHtml(member, presentIds)).join("")}
+    </div>
+  </div>`);
+  if (longAbsentMembers.length) sections.push(`<div class="attendance-member-subsection long-absent">
+    <div class="attendance-member-subsection-title">
+      <strong>장기결석자</strong>
+      <span>${longAbsentMembers.length}명</span>
+    </div>
+    <div class="attendance-member-subsection-grid">
+      ${longAbsentMembers.map((member) => attendanceMemberCardHtml(member, presentIds)).join("")}
+    </div>
+  </div>`);
+  return sections.join("");
+}
+
+function attendanceMemberCardHtml(member, presentIds) {
+  const present = presentIds.has(member.id);
+  return `<button class="attendance-member-card ${present ? "present" : ""} ${member.longAbsent ? "long-absent" : ""}" data-attendance-member-id="${escapeAttribute(member.id)}" type="button" aria-pressed="${present ? "true" : "false"}">
+    ${portraitHtml(member)}
+    <span>
+      <strong>${escapeHtml(member.name)}</strong>
+      <small>${escapeHtml([member.title, member.longAbsent ? "장기결석" : ""].filter(Boolean).join(" · "))}</small>
+    </span>
+    <em>${present ? "출석" : "결석"}</em>
+  </button>`;
 }
 
 function renderAttendanceResults(members, presentIds) {
@@ -926,10 +990,15 @@ function renderAttendanceResults(members, presentIds) {
 function attendanceNamesByCellHtml(members) {
   if (!members.length) return '<p class="attendance-empty">명단 없음</p>';
   return groupedAttendanceMembers(members, new Set(members.map((member) => member.id)))
-    .map((group) => `<div class="attendance-name-group">
-      <strong>${escapeHtml(group.cellName)}</strong>
-      <span>${group.members.map((member) => escapeHtml(member.name)).join(", ")}</span>
-    </div>`)
+    .map((group) => {
+      const regularMembers = group.members.filter((member) => !member.longAbsent);
+      const longAbsentMembers = group.members.filter((member) => member.longAbsent);
+      return `<div class="attendance-name-group">
+        <strong>${escapeHtml(group.cellName)}</strong>
+        ${regularMembers.length ? `<span>${regularMembers.map((member) => escapeHtml(member.name)).join(", ")}</span>` : ""}
+        ${longAbsentMembers.length ? `<span class="attendance-long-absent-names">장기결석: ${longAbsentMembers.map((member) => escapeHtml(member.name)).join(", ")}</span>` : ""}
+      </div>`;
+    })
     .join("");
 }
 
@@ -973,6 +1042,7 @@ function activeMembersForAttendance() {
     .filter((member) => !member.archivedAt)
     .map((member) => ({
       ...member,
+      longAbsent: Boolean(member.longAbsent),
       cellName: state.cells.find((cell) => cell.id === member.cellId)?.name || memberCellLabel(member),
       cellSortOrder: cellSortRank(member.cellId)
     }))
@@ -988,6 +1058,7 @@ function attendanceRecordToMember(record) {
     name: record.memberName,
     title: record.memberTitle || "",
     role: record.memberRole || "",
+    longAbsent: Boolean(record.memberLongAbsent),
     cellSortOrder: Number(record.cellSortOrder || cellSortRank(record.cellId)),
     photoUrl: current?.photoUrl || record.photoUrl || "",
     photoKey: current?.photoKey || record.photoKey || "",
@@ -1074,6 +1145,7 @@ function saveSundayAttendanceLocally(attendanceDate, presentMemberIds) {
     memberName: member.name,
     memberTitle: member.title || "",
     memberRole: member.role || "",
+    memberLongAbsent: Boolean(member.longAbsent),
     cellId: member.cellId,
     cellName: member.cellName || memberCellLabel(member),
     cellSortOrder: member.cellSortOrder || cellSortRank(member.cellId),
