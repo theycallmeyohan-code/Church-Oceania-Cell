@@ -372,6 +372,7 @@ h1 {
   position: sticky;
   top: 94px;
   overflow: auto;
+  scroll-margin-top: 94px;
 }
 
 .empty-detail {

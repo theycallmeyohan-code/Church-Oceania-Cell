@@ -456,7 +456,7 @@ function selectMember(memberId) {
   renderCellTabs();
   renderMembers();
   renderDetail();
-  scrollMobileToTop();
+  scrollToSelectedDetail();
 }
 
 function renderDetail() {
@@ -518,7 +518,7 @@ function startNewMember() {
   state.selectedMemberId = member.id;
   state.pendingPhotoData = null;
   render();
-  scrollMobileToTop();
+  scrollToSelectedDetail();
   el.memberName.focus();
 }
 
@@ -850,8 +850,13 @@ function isMobileView() {
   return window.matchMedia("(max-width: 760px)").matches;
 }
 
-function scrollMobileToTop() {
+function isStackedDetailView() {
+  return window.matchMedia("(max-width: 1180px)").matches;
+}
+
+function scrollToSelectedDetail() {
   if (isMobileView()) window.scrollTo({ top: 0, behavior: "smooth" });
+  else if (isStackedDetailView()) el.detailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function openSettings() {
