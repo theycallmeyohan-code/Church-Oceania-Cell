@@ -391,28 +391,16 @@ h1 {
   word-break: keep-all;
 }
 
-.name-with-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  flex-wrap: wrap;
-  max-width: 100%;
-  vertical-align: middle;
-}
-
 .new-member-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 19px;
+  display: inline-block;
+  margin-top: 5px;
   border: 1px solid #9fc7b7;
   border-radius: 8px;
-  padding: 1px 5px;
+  padding: 2px 6px;
   background: #e6f4ee;
   color: #1f6f55;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
-  line-height: 1;
   white-space: nowrap;
 }
 

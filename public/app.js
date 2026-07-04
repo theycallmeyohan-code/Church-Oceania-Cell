@@ -480,11 +480,11 @@ function memberRoleLabel(member) {
 }
 
 function memberNameHtml(member, fallback = "이름 없음") {
-  const name = escapeHtml(member.name || fallback);
-  const badge = isNewMember(member)
-    ? '<span class="new-member-badge">새신자</span>'
-    : "";
-  return `<span class="name-with-badge"><span>${name}</span>${badge}</span>`;
+  return escapeHtml(member.name || fallback);
+}
+
+function newMemberBadgeHtml(member) {
+  return isNewMember(member) ? '<span class="new-member-badge">새신자</span>' : "";
 }
 
 function memberCardHtml(member, showCell = false) {
@@ -497,6 +497,7 @@ function memberCardHtml(member, showCell = false) {
       <span class="member-sub">${escapeHtml(member.title || "\uC9C1\uBD84 \uC5C6\uC74C")}</span>
       ${cellLabel ? `<span class="member-cell">${escapeHtml(cellLabel)}</span>` : ""}
       ${role && member.role ? `<span class="role-chip">${escapeHtml(role)}</span>` : ""}
+      ${newMemberBadgeHtml(member)}
       ${member.longAbsent ? '<span class="long-absent-chip">장기결석</span>' : ""}
     </span>
   </button>`;
@@ -542,7 +543,9 @@ function renderDetail() {
   el.emptyDetail.classList.add("hidden");
   el.memberForm.classList.remove("hidden");
   el.formMode.textContent = member.id.startsWith("new-") ? "신규" : "상세";
-  el.formTitle.innerHTML = member.name ? memberNameHtml(member) : "성도 정보";
+  el.formTitle.innerHTML = member.name
+    ? `<span>${memberNameHtml(member)}</span>${newMemberBadgeHtml(member)}`
+    : "성도 정보";
   updatePhotoPreview(member);
 
   el.memberName.value = member.name || "";
@@ -981,6 +984,7 @@ function attendanceMemberCardHtml(member, presentIds) {
     <span>
       <strong>${memberNameHtml(member)}</strong>
       <small>${escapeHtml([member.title, member.longAbsent ? "장기결석" : ""].filter(Boolean).join(" · "))}</small>
+      ${newMemberBadgeHtml(member)}
     </span>
     <em>${present ? "출석" : "결석"}</em>
   </button>`;
