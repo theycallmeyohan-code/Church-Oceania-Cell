@@ -1956,10 +1956,30 @@ button:disabled {
     font-size: 11px;
   }
 
+  .cell-tab.gender-male {
+    border-color: #cbd7e3;
+    background: #f5f8fb;
+  }
+
+  .cell-tab.gender-female {
+    border-color: #e3ced8;
+    background: #fbf6f8;
+  }
+
   .cell-tab.active {
     border-color: var(--primary);
     background: #e8f1ed;
     box-shadow: inset 0 0 0 1px rgba(39, 106, 99, 0.18), 0 2px 8px rgba(35, 31, 26, 0.08);
+  }
+
+  .cell-tab.gender-male.active {
+    border-color: #9fb4ca;
+    background: #eef4f8;
+  }
+
+  .cell-tab.gender-female.active {
+    border-color: #d1aebe;
+    background: #f8eff3;
   }
 
   .cell-tab.active span {
