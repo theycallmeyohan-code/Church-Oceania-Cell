@@ -89,11 +89,11 @@ function bindElements() {
     "attendanceDate", "attendanceDateLabel", "attendanceHistory", "attendanceSummary", "attendanceCellStats", "attendanceMemberGrid", "attendanceResults",
     "attendanceSaveBtn", "attendanceClearBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn",
     "communityTitleText", "communityTitleInput", "saveCommunityTitleBtn", "currentPassword", "newPassword", "confirmPassword", "callNoteRefreshBtn", "callNoteWebhookUrl", "callNoteTokenBtn", "callNoteTokenReissueBtn", "callNoteTokenOutput", "callNoteStatus", "callNoteInbox", "visitDatesModal", "visitDatesCloseBtn", "visitMonthPrevBtn", "visitMonthNextBtn", "visitMonthLabel", "visitCalendar", "visitDateSelectedLabel", "visitDateEntries", "visitRecordModal", "visitRecordCloseBtn", "detailPanel", "emptyDetail",
-    "memberForm", "formMode", "formTitle", "backToListBtn", "basicInfoJumpBtn", "bottomBackToListBtn", "closePanelBtn", "photoPreview", "profileDetails", "openVisitRecordBtn",
+    "memberForm", "formMode", "formTitle", "backToListBtn", "basicInfoJumpBtn", "contactMemberBtn", "contactMemberActions", "contactCallLink", "contactSmsLink", "bottomBackToListBtn", "closePanelBtn", "photoPreview", "profileDetails", "openVisitRecordBtn",
     "photoInput", "memberName", "memberTitle", "memberCell",
     "memberRole", "memberBaptismStatus", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthCalendar", "memberRegisteredAt", "memberRegisteredAtPicker", "memberRegisteredAtPickerBtn", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
-    "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitList",
+    "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitMemberSummary", "visitList",
     "toast"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
@@ -157,6 +157,8 @@ function bindEvents() {
   });
   el.backToListBtn.addEventListener("click", closeDetail);
   el.basicInfoJumpBtn.addEventListener("click", jumpToBasicInfo);
+  el.contactMemberBtn.addEventListener("click", toggleContactActions);
+  el.contactMemberActions.addEventListener("click", () => el.contactMemberActions.classList.add("hidden"));
   el.bottomBackToListBtn.addEventListener("click", closeDetail);
   el.settingsBtn.addEventListener("click", openSettings);
   el.settingsCloseBtn.addEventListener("click", closeSettings);
@@ -626,6 +628,32 @@ function portraitHtml(member, large = false) {
   return `<span class="${classes}" aria-hidden="true">${escapeHtml(initials(member.name))}</span>`;
 }
 
+function renderVisitMemberSummary(member) {
+  el.visitMemberSummary.innerHTML = `
+    <strong>${memberNameHtml(member)}</strong>
+    <span>${escapeHtml(member.title || "직분 없음")}</span>`;
+}
+
+function renderContactActions(member) {
+  const callPhone = callablePhoneNumber(member);
+  const smsPhone = normalizePhoneSearch(member.phone || "");
+  el.contactMemberBtn.disabled = !callPhone;
+  el.contactMemberBtn.title = callPhone ? "연락하기" : "전화번호 없음";
+  el.contactCallLink.href = callPhone ? `tel:${callPhone}` : "#";
+  el.contactSmsLink.href = smsPhone ? `sms:${smsPhone}` : "#";
+  el.contactSmsLink.classList.toggle("hidden", !smsPhone);
+  el.contactMemberActions.classList.add("hidden");
+}
+
+function toggleContactActions() {
+  const member = selectedMember();
+  if (!callablePhoneNumber(member)) {
+    toast("전화번호가 없습니다");
+    return;
+  }
+  el.contactMemberActions.classList.toggle("hidden");
+}
+
 function updatePhotoPreview(member) {
   el.photoPreview.outerHTML = portraitHtml(member, true)
     .replace("<span", "<div id=\"photoPreview\"")
@@ -668,6 +696,8 @@ function renderDetail() {
     ? `<span>${memberNameHtml(member)}</span>${newMemberBadgeHtml(member)}`
     : "성도 정보"}${returnButtonHtml}`;
   el.formTitle.querySelector("[data-return-attendance]")?.addEventListener("click", returnToSundayAttendance);
+  renderVisitMemberSummary(member);
+  renderContactActions(member);
   updatePhotoPreview(member);
 
   el.memberName.value = member.name || "";
