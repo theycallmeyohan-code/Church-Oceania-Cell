@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS members (
   registered_at TEXT DEFAULT '',
   address TEXT DEFAULT '',
   memo TEXT DEFAULT '',
+  baptized INTEGER NOT NULL DEFAULT 0,
   photo_key TEXT DEFAULT '',
   archived_at TEXT DEFAULT '',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,

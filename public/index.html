@@ -65,7 +65,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 5v14M5 12h14"></path>
             </svg>
-            새 성도
+            새신자등록
           </button>
         </div>
       </header>
@@ -163,6 +163,10 @@
               <div class="profile-details-grid">
                 <label>셀<select id="memberCell"></select></label>
                 <label>역할<select id="memberRole"></select></label>
+                <label class="check-field baptism-toggle">
+                  <input id="memberBaptized" type="checkbox">
+                  <span>세례</span>
+                </label>
                 <label>전화<input id="memberPhone" inputmode="tel" autocomplete="tel" maxlength="13" placeholder="010-0000-0000"></label>
                 <label>집전화<input id="memberHomePhone" inputmode="tel" maxlength="13" placeholder="041-000-0000"></label>
                 <label>생년월일<input id="memberBirth" type="text" inputmode="numeric" autocomplete="off" placeholder="예: 1950-01-01"></label>

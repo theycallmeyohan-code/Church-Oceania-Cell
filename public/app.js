@@ -29,6 +29,7 @@ const INITIAL_MEMBERS = seedRows.map((row, index) => ({
   homePhone: "",
   birth: "",
   registeredAt: "",
+  baptized: false,
   address: "",
   memo: "",
   photoUrl: `photos/seed-${String(index + 1).padStart(3, "0")}.jpg?v=${PHOTO_VERSION}`,
@@ -89,7 +90,7 @@ function bindElements() {
     "communityTitleText", "communityTitleInput", "saveCommunityTitleBtn", "currentPassword", "newPassword", "confirmPassword", "callNoteRefreshBtn", "callNoteWebhookUrl", "callNoteTokenBtn", "callNoteTokenReissueBtn", "callNoteTokenOutput", "callNoteStatus", "callNoteInbox", "visitDatesModal", "visitDatesCloseBtn", "visitMonthPrevBtn", "visitMonthNextBtn", "visitMonthLabel", "visitCalendar", "visitDateSelectedLabel", "visitDateEntries", "visitRecordModal", "visitRecordCloseBtn", "detailPanel", "emptyDetail",
     "memberForm", "formMode", "formTitle", "backToListBtn", "basicInfoJumpBtn", "bottomBackToListBtn", "closePanelBtn", "photoPreview", "profileDetails", "openVisitRecordBtn",
     "photoInput", "memberName", "memberTitle", "memberCell",
-    "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthLunar", "memberRegisteredAt", "memberRegisteredAtPicker", "memberRegisteredAtPickerBtn", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
+    "memberRole", "memberBaptized", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthLunar", "memberRegisteredAt", "memberRegisteredAtPicker", "memberRegisteredAtPickerBtn", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
     "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitList",
     "toast"
@@ -493,6 +494,7 @@ function memberMatchesSearch(member, rawQuery) {
     member.homePhone,
     member.birth,
     member.registeredAt,
+    member.baptized ? "세례" : "",
     member.address,
     member.memo,
     memberCellLabel(member),
@@ -627,6 +629,7 @@ function renderDetail() {
   el.memberTitle.value = member.title || "";
   el.memberCell.value = member.cellId || state.selectedCellId;
   el.memberRole.value = member.role || "";
+  el.memberBaptized.checked = Boolean(member.baptized);
   el.memberPhone.value = formatPhoneNumber(member.phone || "", "mobile");
   el.memberHomePhone.value = formatPhoneNumber(member.homePhone || "", "landline");
   const birth = parseBirthValue(member.birth);
@@ -672,6 +675,7 @@ function startNewMember() {
     homePhone: "",
     birth: "",
     registeredAt: "",
+    baptized: false,
     address: "",
     memo: "",
     prayerRequests: "",
@@ -720,6 +724,7 @@ async function saveMember(event) {
     homePhone: formatPhoneNumber(el.memberHomePhone.value, "landline"),
     birth: buildBirthValue(birthDate, el.memberBirthLunar.checked, member.birth),
     registeredAt,
+    baptized: el.memberBaptized.checked,
     address: el.memberAddress.value.trim(),
     longAbsent: el.memberLongAbsent.checked,
     memo: el.memberMemo.value.trim(),

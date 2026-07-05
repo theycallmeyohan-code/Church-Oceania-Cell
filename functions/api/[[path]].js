@@ -54,7 +54,7 @@ async function getBootstrap(env) {
   const members = await env.DB.prepare(
     `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
       prayer_requests AS prayerRequests,
-      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, trashed_at AS trashedAt, created_at AS createdAt, updated_at AS updatedAt
+      baptized, long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, trashed_at AS trashedAt, created_at AS createdAt, updated_at AS updatedAt
      FROM members
      WHERE COALESCE(trashed_at, '') = ''
      ORDER BY cell_id, role DESC, name`
@@ -347,11 +347,11 @@ async function handleMembers(request, env, path) {
     const member = normalizeMember({ ...body, id: "" }, crypto.randomUUID());
     await env.DB.prepare(
       `INSERT INTO members
-        (id, cell_id, name, title, role, phone, home_phone, birth, registered_at, address, memo, prayer_requests, long_absent, photo_key, archived_at, trashed_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, cell_id, name, title, role, phone, home_phone, birth, registered_at, address, memo, prayer_requests, baptized, long_absent, photo_key, archived_at, trashed_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       member.id, member.cellId, member.name, member.title, member.role, member.phone, member.homePhone, member.birth, member.registeredAt,
-      member.address, member.memo, member.prayerRequests, member.longAbsent, member.photoKey, member.archivedAt, member.trashedAt, member.createdAt, member.updatedAt
+      member.address, member.memo, member.prayerRequests, member.baptized, member.longAbsent, member.photoKey, member.archivedAt, member.trashedAt, member.createdAt, member.updatedAt
     ).run();
     await audit(env, request, "member.create", "member", member.id, "", member);
     return json(cellsWithPhotoUrls([member])[0], 201);
@@ -368,11 +368,11 @@ async function handleMembers(request, env, path) {
     await env.DB.prepare(
       `UPDATE members
        SET cell_id = ?, name = ?, title = ?, role = ?, phone = ?, home_phone = ?, birth = ?, registered_at = ?, address = ?,
-        memo = ?, prayer_requests = ?, long_absent = ?, photo_key = ?, archived_at = ?, trashed_at = ?, updated_at = ?
+        memo = ?, prayer_requests = ?, baptized = ?, long_absent = ?, photo_key = ?, archived_at = ?, trashed_at = ?, updated_at = ?
        WHERE id = ?`
     ).bind(
       member.cellId, member.name, member.title, member.role, member.phone, member.homePhone, member.birth, member.registeredAt, member.address,
-      member.memo, member.prayerRequests, member.longAbsent, member.photoKey, member.archivedAt, member.trashedAt, member.updatedAt, id
+      member.memo, member.prayerRequests, member.baptized, member.longAbsent, member.photoKey, member.archivedAt, member.trashedAt, member.updatedAt, id
     ).run();
     await audit(env, request, "member.update", "member", id, previous, member);
     return json(cellsWithPhotoUrls([member])[0]);
@@ -778,7 +778,7 @@ async function getMember(env, id) {
   return env.DB.prepare(
     `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
       prayer_requests AS prayerRequests,
-      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, trashed_at AS trashedAt, created_at AS createdAt, updated_at AS updatedAt
+      baptized, long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, trashed_at AS trashedAt, created_at AS createdAt, updated_at AS updatedAt
      FROM members WHERE id = ?`
   ).bind(id).first();
 }
@@ -1079,6 +1079,7 @@ function normalizeMember(body, fallbackId) {
     address: clean(body.address),
     memo: clean(body.memo),
     prayerRequests: clean(body.prayerRequests),
+    baptized: truthy(body.baptized) ? 1 : 0,
     longAbsent: truthy(body.longAbsent) ? 1 : 0,
     photoKey: clean(body.photoKey),
     archivedAt: clean(body.archivedAt),
@@ -1107,6 +1108,7 @@ function normalizeVisit(body) {
 function cellsWithPhotoUrls(members) {
   return members.map((member) => ({
     ...member,
+    baptized: truthy(member.baptized),
     longAbsent: truthy(member.longAbsent),
     photoUrl: member.photoKey
       ? `/api/photos/${encodeURIComponent(member.photoKey)}`
