@@ -1082,7 +1082,13 @@ textarea:focus {
 }
 
 .visit-list.collapsed .visit-item {
+  max-height: 86px;
+  overflow: hidden;
   padding: 8px 10px;
+}
+
+.visit-list.collapsed .visit-preview-extra {
+  display: none;
 }
 
 .visit-item.editing {
