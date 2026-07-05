@@ -23,7 +23,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="/favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="./styles.css?v=settings-token-view-1">
+    <link rel="stylesheet" href="./styles.css?v=member-input-format-1">
   </head>
   <body>
     <div class="app-shell">
@@ -163,9 +163,13 @@
               <div class="profile-details-grid">
                 <label>셀<select id="memberCell"></select></label>
                 <label>역할<select id="memberRole"></select></label>
-                <label>전화<input id="memberPhone" inputmode="tel"></label>
-                <label>집전화<input id="memberHomePhone" inputmode="tel"></label>
-                <label>생년월일<input id="memberBirth" type="date"></label>
+                <label>전화<input id="memberPhone" inputmode="tel" autocomplete="tel" maxlength="13" placeholder="010-0000-0000"></label>
+                <label>집전화<input id="memberHomePhone" inputmode="tel" maxlength="13" placeholder="041-000-0000"></label>
+                <label>생년월일<input id="memberBirth" type="text" inputmode="numeric" autocomplete="off" placeholder="예: 1950-01-01"></label>
+                <label class="check-field lunar-toggle">
+                  <input id="memberBirthLunar" type="checkbox">
+                  <span>음력</span>
+                </label>
                 <label class="age-field">나이
                   <div class="age-with-calendar">
                     <input id="memberAge" class="age-output" readonly tabindex="-1">
@@ -437,6 +441,6 @@
     </div>
     <div id="toast" class="toast" role="status"></div>
     <script src="./member-details.js?v=member-details-4"></script>
-    <script src="./app.js?v=admin-token-prompt-fix-1"></script>
+    <script src="./app.js?v=member-input-format-1"></script>
   </body>
 </html>

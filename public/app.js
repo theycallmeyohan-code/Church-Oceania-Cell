@@ -73,7 +73,7 @@ document.addEventListener("DOMContentLoaded", init);
 async function init() {
   bindElements();
   bindEvents();
-  el.memberBirth.max = today();
+  el.memberBirth.maxLength = 10;
   populateRoleOptions();
   await loadState();
   state.selectedCellId = state.selectedCellId || state.cells[0]?.id || "";
@@ -89,7 +89,7 @@ function bindElements() {
     "communityTitleText", "communityTitleInput", "saveCommunityTitleBtn", "currentPassword", "newPassword", "confirmPassword", "callNoteRefreshBtn", "callNoteWebhookUrl", "callNoteTokenBtn", "callNoteTokenReissueBtn", "callNoteTokenOutput", "callNoteStatus", "callNoteInbox", "visitDatesModal", "visitDatesCloseBtn", "visitMonthPrevBtn", "visitMonthNextBtn", "visitMonthLabel", "visitCalendar", "visitDateSelectedLabel", "visitDateEntries", "visitRecordModal", "visitRecordCloseBtn", "detailPanel", "emptyDetail",
     "memberForm", "formMode", "formTitle", "backToListBtn", "basicInfoJumpBtn", "bottomBackToListBtn", "closePanelBtn", "photoPreview", "profileDetails", "openVisitRecordBtn",
     "photoInput", "memberName", "memberTitle", "memberCell",
-    "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
+    "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthLunar", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
     "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitList",
     "toast"
@@ -162,8 +162,11 @@ function bindEvents() {
   el.closePanelBtn.addEventListener("click", closeDetail);
   el.memberForm.addEventListener("submit", saveMember);
   el.photoInput.addEventListener("change", handlePhotoPick);
-  el.memberBirth.addEventListener("input", updateBirthAge);
-  el.memberBirth.addEventListener("change", updateBirthAge);
+  el.memberPhone.addEventListener("input", () => formatPhoneField(el.memberPhone, "mobile"));
+  el.memberHomePhone.addEventListener("input", () => formatPhoneField(el.memberHomePhone, "landline"));
+  el.memberBirth.addEventListener("input", formatBirthField);
+  el.memberBirth.addEventListener("change", formatBirthField);
+  el.memberBirthLunar.addEventListener("change", updateBirthAge);
   el.archiveBtn.addEventListener("click", archiveSelected);
   el.restoreBtn.addEventListener("click", restoreSelected);
   el.deleteBtn.addEventListener("click", deleteSelected);
@@ -508,6 +511,32 @@ function normalizePhoneSearch(value) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function formatPhoneNumber(value, kind = "mobile") {
+  const digits = normalizePhoneSearch(value).slice(0, 11);
+  if (!digits) return "";
+
+  if (kind === "landline") {
+    if (digits.startsWith("02")) {
+      if (digits.length <= 2) return digits;
+      if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+      if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+      return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+    }
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    if (digits.length <= 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+  }
+
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+}
+
+function formatPhoneField(field, kind) {
+  field.value = formatPhoneNumber(field.value, kind);
+}
+
 function memberCellLabel(member) {
   const cell = state.cells.find((item) => item.id === member.cellId);
   return cell ? `${cell.name} ${cell.meta || ""}`.trim() : "";
@@ -592,10 +621,11 @@ function renderDetail() {
   el.memberTitle.value = member.title || "";
   el.memberCell.value = member.cellId || state.selectedCellId;
   el.memberRole.value = member.role || "";
-  el.memberPhone.value = member.phone || "";
-  el.memberHomePhone.value = member.homePhone || "";
+  el.memberPhone.value = formatPhoneNumber(member.phone || "", "mobile");
+  el.memberHomePhone.value = formatPhoneNumber(member.homePhone || "", "landline");
   const birth = parseBirthValue(member.birth);
   el.memberBirth.value = birth.date || "";
+  el.memberBirthLunar.checked = birth.marker === "\uC74C";
   el.memberRegisteredAt.value = member.registeredAt || "";
   el.memberAge.value = birth.date ? ageLabel(birth.date) : (birth.age ? birth.age + "\uC138" : "");
   renderLunarMarker(birth.marker);
@@ -649,14 +679,21 @@ async function saveMember(event) {
   if (!member) return;
 
   const wasNew = member.id.startsWith("new-");
+  const birthDate = formatBirthDateInput(el.memberBirth.value);
+  el.memberBirth.value = birthDate;
+  if (birthDate && !parseDateValue(birthDate)) {
+    toast("생년월일은 1950-01-01 형식으로 입력하세요");
+    el.memberBirth.focus();
+    return;
+  }
   const payload = {
     name: el.memberName.value.trim(),
     title: el.memberTitle.value.trim(),
     cellId: el.memberCell.value,
     role: el.memberRole.value,
-    phone: el.memberPhone.value.trim(),
-    homePhone: el.memberHomePhone.value.trim(),
-    birth: buildBirthValue(el.memberBirth.value, member.birth),
+    phone: formatPhoneNumber(el.memberPhone.value, "mobile"),
+    homePhone: formatPhoneNumber(el.memberHomePhone.value, "landline"),
+    birth: buildBirthValue(birthDate, el.memberBirthLunar.checked, member.birth),
     registeredAt: el.memberRegisteredAt.value.trim(),
     address: el.memberAddress.value.trim(),
     longAbsent: el.memberLongAbsent.checked,
@@ -1923,11 +1960,11 @@ function parseBirthValue(value) {
   return { date, marker, age };
 }
 
-function buildBirthValue(dateValue, previousValue = "") {
-  const date = String(dateValue || "").trim();
+function buildBirthValue(dateValue, isLunar = false, previousValue = "") {
+  const date = formatBirthDateInput(dateValue);
   const previous = parseBirthValue(previousValue);
   if (!date) return previous.date ? "" : String(previousValue || "").trim();
-  const marker = previous.marker === "\uC74C" ? previous.marker : "";
+  const marker = isLunar ? "\uC74C" : "";
   const age = calculateAge(date);
   return [date, marker, Number.isFinite(age) ? "(" + age + "\uC138)" : ""].filter(Boolean).join(" ");
 }
@@ -1939,7 +1976,21 @@ function renderLunarMarker(marker) {
 }
 
 function updateBirthAge() {
-  el.memberAge.value = ageLabel(el.memberBirth.value);
+  const date = formatBirthDateInput(el.memberBirth.value);
+  el.memberAge.value = ageLabel(date);
+  renderLunarMarker(el.memberBirthLunar.checked ? "\uC74C" : "");
+}
+
+function formatBirthField() {
+  el.memberBirth.value = formatBirthDateInput(el.memberBirth.value);
+  updateBirthAge();
+}
+
+function formatBirthDateInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
 }
 
 function ageLabel(dateValue) {
