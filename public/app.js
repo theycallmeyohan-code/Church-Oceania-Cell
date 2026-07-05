@@ -1148,7 +1148,7 @@ function renderVisitListState(visitCount = state.visits.filter((visit) => visit.
   el.visitListToggleBtn.classList.toggle("hidden", !hasVisits);
   el.visitListToggleBtn.classList.toggle("collapsed", collapsed);
   el.visitListToggleBtn.setAttribute("aria-expanded", fullPage || !collapsed ? "true" : "false");
-  el.visitListToggleBtn.querySelector("span").textContent = fullPage ? "접기" : (collapsed ? "펼치기" : "접기");
+  el.visitListToggleBtn.querySelector("span").textContent = fullPage ? "접기" : (collapsed ? "전체 보기" : "접기");
   renderExpandedVisitItem();
 }
 

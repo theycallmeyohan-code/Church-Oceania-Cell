@@ -2408,33 +2408,8 @@ button:disabled {
     overflow: hidden;
   }
 
-  .visit-section.full-page .visit-member-summary,
   .visit-section.full-page .section-head {
     flex: 0 0 auto;
-  }
-
-  .visit-member-summary {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 9px 10px;
-    background: #fffdf8;
-  }
-
-  .visit-member-summary strong {
-    color: var(--primary-strong);
-    font-size: 16px;
-    font-weight: 900;
-  }
-
-  .visit-member-summary span {
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 900;
   }
 
   .visit-summary-record-button {
