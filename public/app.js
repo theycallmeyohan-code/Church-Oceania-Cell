@@ -62,6 +62,7 @@ const state = {
   attendanceDate: "",
   attendanceRecords: [],
   attendancePresentIds: [],
+  returnToAttendanceDate: "",
   callNoteImports: [],
   editingVisitId: "",
   apiOnline: false
@@ -127,6 +128,7 @@ function bindEvents() {
     }
     const detailButton = closestElement(event.target, "[data-attendance-member-detail]");
     if (detailButton) {
+      state.returnToAttendanceDate = state.attendanceDate || nearestSundayDate();
       closeSundayAttendance();
       selectMember(detailButton.dataset.attendanceMemberDetail);
     }
@@ -651,15 +653,21 @@ function renderDetail() {
     hideVisitRecord();
     el.emptyDetail.classList.remove("hidden");
     el.memberForm.classList.add("hidden");
+    el.formTitle.classList.add("hidden-title");
     return;
   }
 
   el.emptyDetail.classList.add("hidden");
   el.memberForm.classList.remove("hidden");
   el.formMode.textContent = isDraftMember(member) ? "신규" : "상세";
-  el.formTitle.innerHTML = member.name
+  const returnButtonHtml = state.returnToAttendanceDate
+    ? '<button class="detail-return-button" type="button" data-return-attendance>결석자명단으로</button>'
+    : "";
+  el.formTitle.classList.toggle("hidden-title", !state.returnToAttendanceDate);
+  el.formTitle.innerHTML = `${member.name
     ? `<span>${memberNameHtml(member)}</span>${newMemberBadgeHtml(member)}`
-    : "성도 정보";
+    : "성도 정보"}${returnButtonHtml}`;
+  el.formTitle.querySelector("[data-return-attendance]")?.addEventListener("click", returnToSundayAttendance);
   updatePhotoPreview(member);
 
   el.memberName.value = member.name || "";
@@ -1088,6 +1096,14 @@ function closeSundayAttendance() {
   el.attendanceModal.setAttribute("aria-hidden", "true");
 }
 
+async function returnToSundayAttendance() {
+  const date = state.returnToAttendanceDate || state.attendanceDate || nearestSundayDate();
+  state.returnToAttendanceDate = "";
+  state.attendanceDate = date;
+  await openSundayAttendance();
+  requestAnimationFrame(scrollToAttendanceResults);
+}
+
 async function loadSundayAttendanceSessions() {
   if (state.apiOnline) {
     try {
@@ -1390,6 +1406,8 @@ function toggleSundayAttendanceMember(memberId) {
 }
 
 function clearSundayAttendance() {
+  const ok = confirm("출석 체크를 모두 해제할까요?");
+  if (!ok) return;
   state.attendancePresentIds = [];
   renderSundayAttendance();
 }
@@ -1399,7 +1417,9 @@ function scrollToAttendanceResults() {
 }
 
 function scrollToAttendanceChecklist() {
-  el.attendanceSummary.scrollIntoView({ behavior: "smooth", block: "start" });
+  const dialog = el.attendanceModal.querySelector(".attendance-dialog");
+  if (dialog) dialog.scrollTo({ top: 0, behavior: "smooth" });
+  else el.attendanceModal.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function handleAttendanceSummaryKeydown(event) {
@@ -2065,6 +2085,7 @@ function closeDetail() {
   }
   state.selectedMemberId = "";
   state.pendingPhotoData = null;
+  state.returnToAttendanceDate = "";
   persist();
   render();
 }

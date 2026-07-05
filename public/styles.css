@@ -585,6 +585,19 @@ h1 {
   flex-wrap: wrap;
 }
 
+.detail-return-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid rgba(39, 106, 99, 0.24);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #e8f1ed;
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .hidden-title {
   display: none;
 }
@@ -1761,6 +1774,9 @@ button:disabled {
 }
 
 .attendance-actions {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 8px;
   margin-bottom: 0;
 }
 
