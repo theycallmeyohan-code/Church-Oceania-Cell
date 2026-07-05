@@ -1301,12 +1301,14 @@ button:disabled {
 
 .visit-dates-button,
 .attendance-button,
+.top-list-back-button,
 .mobile-back-button,
 .basic-info-jump-button,
 .contact-member-wrap {
   flex: 0 0 auto;
 }
 
+.top-list-back-button,
 .mobile-back-button,
 .basic-info-jump-button,
 .contact-member-wrap,
@@ -2086,6 +2088,31 @@ button:disabled {
     word-break: keep-all;
   }
 
+  body.detail-active #addMemberBtn,
+  body.detail-active .top-list-back-button {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    min-height: 40px;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 12px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  body.detail-active #addMemberBtn {
+    flex-grow: 1;
+    flex-basis: calc(50% - 5px);
+  }
+
+  body.detail-active #addMemberBtn span {
+    white-space: nowrap;
+  }
+
+  body.detail-active .top-list-back-button {
+    display: inline-flex;
+  }
+
   .workspace {
     display: block;
     padding: 10px;
@@ -2244,7 +2271,7 @@ button:disabled {
   }
 
   .mobile-back-button {
-    display: inline-flex;
+    display: none;
   }
 
   .basic-info-jump-button {
