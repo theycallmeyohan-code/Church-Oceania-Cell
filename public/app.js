@@ -151,6 +151,10 @@ function bindEvents() {
   el.visitMonthPrevBtn.addEventListener("click", () => shiftVisitCalendarMonth(-1));
   el.visitMonthNextBtn.addEventListener("click", () => shiftVisitCalendarMonth(1));
   el.openVisitRecordBtn.addEventListener("click", openVisitRecord);
+  el.visitMemberSummary.addEventListener("click", (event) => {
+    const button = closestElement(event.target, "[data-open-visit-record]");
+    if (button) openVisitRecord();
+  });
   el.visitRecordCloseBtn.addEventListener("click", closeVisitRecord);
   el.visitRecordModal.addEventListener("click", (event) => {
     if (event.target === el.visitRecordModal) closeVisitRecord();
@@ -630,8 +634,17 @@ function portraitHtml(member, large = false) {
 
 function renderVisitMemberSummary(member) {
   el.visitMemberSummary.innerHTML = `
-    <strong>${memberNameHtml(member)}</strong>
-    <span>${escapeHtml(member.title || "직분 없음")}</span>`;
+    <div class="visit-member-summary-text">
+      <strong>${memberNameHtml(member)}</strong>
+      <span>${escapeHtml(member.title || "직분 없음")}</span>
+    </div>
+    <button class="icon-button text-button subtle visit-summary-record-button" type="button" data-open-visit-record title="심방기록" aria-label="심방기록">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 6h13M8 12h13M8 18h13"></path>
+        <path d="M3 6h.01M3 12h.01M3 18h.01"></path>
+      </svg>
+      <span>심방기록</span>
+    </button>`;
 }
 
 function renderContactActions(member) {

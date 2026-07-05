@@ -1339,6 +1339,18 @@ button:disabled {
   text-decoration: none;
 }
 
+.visit-member-summary-text {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.visit-summary-record-button {
+  flex: 0 0 auto;
+}
+
 .bottom-actions-row {
   display: none;
 }
@@ -2288,6 +2300,7 @@ button:disabled {
     display: flex;
     align-items: center;
     gap: 8px;
+    justify-content: space-between;
     margin-bottom: 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -2305,6 +2318,18 @@ button:disabled {
     color: var(--muted);
     font-size: 13px;
     font-weight: 900;
+  }
+
+  .visit-summary-record-button {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .visit-summary-record-button svg {
+    width: 16px;
+    height: 16px;
   }
 
   .visit-list {
