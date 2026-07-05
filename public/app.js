@@ -1864,11 +1864,6 @@ function closeSettings() {
 
 async function saveCommunityTitle() {
   const communityTitle = cleanTitle(el.communityTitleInput.value);
-  if (!communityTitle) {
-    toast("설정에서 제목을 입력하세요");
-    el.communityTitleInput.focus();
-    return;
-  }
   el.saveCommunityTitleBtn.disabled = true;
   try {
     const response = await writeFetch("/api/settings", {
@@ -1880,11 +1875,11 @@ async function saveCommunityTitle() {
     if (!response.ok) throw new Error(result.error || "settings failed");
     state.settings = {
       ...state.settings,
-      communityTitle: result.communityTitle || communityTitle
+      communityTitle: typeof result.communityTitle === "string" ? result.communityTitle : communityTitle
     };
     persist();
     renderCommunityTitle();
-    toast("상단 제목을 저장했습니다");
+    toast(communityTitle ? "상단 제목을 저장했습니다" : "화면 제목을 비웠습니다");
   } catch (error) {
     toast(error.message || "상단 제목을 저장하지 못했습니다");
   } finally {
