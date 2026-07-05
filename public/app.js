@@ -66,6 +66,8 @@ const state = {
   callNoteImports: [],
   editingVisitId: "",
   visitListCollapsed: false,
+  visitListPageOpen: false,
+  expandedVisitId: "",
   apiOnline: false
 };
 
@@ -161,6 +163,7 @@ function bindEvents() {
     if (event.target === el.visitRecordModal) closeVisitRecord();
   });
   el.visitListToggleBtn.addEventListener("click", toggleVisitList);
+  el.visitList.addEventListener("click", handleVisitListClick);
   el.backToListBtn.addEventListener("click", closeDetail);
   el.basicInfoJumpBtn.addEventListener("click", jumpToBasicInfo);
   el.contactMemberBtn.addEventListener("click", toggleContactActions);
@@ -684,6 +687,8 @@ function selectMember(memberId) {
   state.pendingPhotoData = null;
   state.editingVisitId = "";
   state.visitListCollapsed = isMobileView();
+  state.visitListPageOpen = false;
+  state.expandedVisitId = "";
   persist();
   renderCellTabs();
   renderMembers();
@@ -749,6 +754,8 @@ function startNewMember() {
     state.selectedCellId = draft.cellId || state.selectedCellId;
     state.selectedMemberId = draft.id;
     state.visitListCollapsed = isMobileView();
+    state.visitListPageOpen = false;
+    state.expandedVisitId = "";
     render();
     scrollToSelectedDetail();
     el.memberName.focus();
@@ -783,6 +790,8 @@ function startNewMember() {
   state.selectedMemberId = member.id;
   state.pendingPhotoData = null;
   state.visitListCollapsed = isMobileView();
+  state.visitListPageOpen = false;
+  state.expandedVisitId = "";
   render();
   scrollToSelectedDetail();
   el.memberName.focus();
@@ -1057,6 +1066,8 @@ function startVisitEdit(visitId) {
   if (!visit || !member || visit.memberId !== member.id) return;
   state.editingVisitId = visit.id;
   state.visitListCollapsed = false;
+  state.visitListPageOpen = isMobileView();
+  state.expandedVisitId = "";
   renderVisits(member.id);
   el.visitDate.value = visit.visitDate || today();
   el.visitType.value = visit.visitType || el.visitType.options[0]?.value || "";
@@ -1092,7 +1103,7 @@ function renderVisits(memberId) {
   el.visitCount.textContent = `${visits.length}건`;
   if (!state.editingVisitId) resetVisitForm();
   el.visitList.innerHTML = visits.length
-    ? visits.map((visit) => `<article class="visit-item ${visit.id === state.editingVisitId ? "editing" : ""}">
+    ? visits.map((visit) => `<article class="visit-item ${visit.id === state.editingVisitId ? "editing" : ""} ${visit.id === state.expandedVisitId ? "expanded" : ""}" data-visit-id="${escapeAttribute(visit.id)}">
         <div class="visit-item-head">
           <strong>${escapeHtml(visit.visitDate || "")} · ${escapeHtml(visit.visitType || "심방")}</strong>
           <button class="icon-button subtle visit-edit-button" data-visit-edit-id="${escapeAttribute(visit.id)}" type="button" title="수정" aria-label="심방내역 수정">
@@ -1112,20 +1123,49 @@ function renderVisits(memberId) {
 }
 
 function toggleVisitList() {
-  state.visitListCollapsed = !state.visitListCollapsed;
+  if (isMobileView()) {
+    state.visitListPageOpen = !state.visitListPageOpen;
+    state.visitListCollapsed = !state.visitListPageOpen;
+    state.expandedVisitId = "";
+  } else {
+    state.visitListCollapsed = !state.visitListCollapsed;
+    state.visitListPageOpen = false;
+    state.expandedVisitId = "";
+  }
   renderVisitListState();
+  el.visitList.scrollTop = 0;
 }
 
 function renderVisitListState(visitCount = state.visits.filter((visit) => visit.memberId === state.selectedMemberId).length) {
   const hasVisits = visitCount > 0;
-  const collapsed = hasVisits && state.visitListCollapsed;
-  el.visitList.closest(".visit-section")?.classList.toggle("empty", !hasVisits);
+  const fullPage = hasVisits && isMobileView() && state.visitListPageOpen;
+  const collapsed = hasVisits && state.visitListCollapsed && !fullPage;
+  const visitSection = el.visitList.closest(".visit-section");
+  visitSection?.classList.toggle("empty", !hasVisits);
+  visitSection?.classList.toggle("full-page", fullPage);
   el.visitList.classList.toggle("collapsed", collapsed);
   el.visitList.classList.toggle("scrollable", visitCount > 4);
   el.visitListToggleBtn.classList.toggle("hidden", !hasVisits);
   el.visitListToggleBtn.classList.toggle("collapsed", collapsed);
-  el.visitListToggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
-  el.visitListToggleBtn.querySelector("span").textContent = collapsed ? "펼치기" : "접기";
+  el.visitListToggleBtn.setAttribute("aria-expanded", fullPage || !collapsed ? "true" : "false");
+  el.visitListToggleBtn.querySelector("span").textContent = fullPage ? "접기" : (collapsed ? "펼치기" : "접기");
+  renderExpandedVisitItem();
+}
+
+function handleVisitListClick(event) {
+  if (!isMobileView() || !state.visitListCollapsed || state.visitListPageOpen) return;
+  if (closestElement(event.target, "[data-visit-edit-id]")) return;
+  const item = closestElement(event.target, "[data-visit-id]");
+  if (!item) return;
+  state.expandedVisitId = state.expandedVisitId === item.dataset.visitId ? "" : item.dataset.visitId;
+  renderExpandedVisitItem();
+}
+
+function renderExpandedVisitItem() {
+  const allowExpanded = isMobileView() && state.visitListCollapsed && !state.visitListPageOpen;
+  el.visitList.querySelectorAll("[data-visit-id]").forEach((visitItem) => {
+    visitItem.classList.toggle("expanded", allowExpanded && visitItem.dataset.visitId === state.expandedVisitId);
+  });
 }
 
 async function callApi(url, options) {

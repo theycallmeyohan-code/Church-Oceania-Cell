@@ -1082,9 +1082,17 @@ textarea:focus {
 }
 
 .visit-list.collapsed .visit-item {
+  cursor: pointer;
   max-height: 86px;
   overflow: hidden;
   padding: 8px 10px;
+}
+
+.visit-list.collapsed .visit-item.expanded {
+  max-height: none;
+  border-color: var(--primary);
+  background: #fffdf8;
+  box-shadow: 0 0 0 2px rgba(39, 106, 99, 0.1);
 }
 
 .visit-item.editing {
@@ -1136,6 +1144,12 @@ textarea:focus {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   white-space: normal;
+}
+
+.visit-list.collapsed .visit-item.expanded p {
+  display: block;
+  overflow: visible;
+  white-space: pre-line;
 }
 
 .visit-item small {
@@ -2382,6 +2396,23 @@ button:disabled {
     display: none;
   }
 
+  .visit-section.full-page {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: max(18px, calc(env(safe-area-inset-top) + 18px)) 12px max(16px, calc(env(safe-area-inset-bottom) + 14px));
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .visit-section.full-page .visit-member-summary,
+  .visit-section.full-page .section-head {
+    flex: 0 0 auto;
+  }
+
   .visit-member-summary {
     display: flex;
     align-items: center;
@@ -2469,6 +2500,18 @@ button:disabled {
 
   .visit-list.collapsed {
     max-height: min(48dvh, 372px);
+  }
+
+  .visit-section.full-page .visit-list {
+    flex: 1 1 auto;
+    max-height: none;
+    min-height: 0;
+  }
+
+  .visit-section.full-page .visit-list-toggle-button {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
   }
 
   .visit-entry {
