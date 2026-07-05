@@ -1,5 +1,5 @@
 const PHOTO_VERSION = "20260704-photo-fix-2";
-const DEFAULT_COMMUNITY_TITLE = "남아메리카 공동체";
+const DEFAULT_COMMUNITY_TITLE = "";
 const PASSWORD_HASH_KEY = "auth.passwordHash";
 const CALL_NOTE_TOKEN_HASH_KEY = "callNote.tokenHash";
 const CALL_NOTE_TOKEN_ENCRYPTED_KEY = "callNote.tokenEncrypted";
@@ -92,7 +92,7 @@ async function handleSettings(request, env) {
     await requireWriteAuth(request, env);
     const body = await safeJson(request);
     const communityTitle = clean(body.communityTitle).slice(0, 40);
-    if (!communityTitle) return json({ error: "상단 제목을 입력하세요" }, 400);
+    if (!communityTitle) return json({ error: "설정에서 제목을 입력하세요" }, 400);
     const updatedAt = new Date().toISOString();
     await appSettingStatement(env, COMMUNITY_TITLE_KEY, communityTitle, updatedAt).run();
     await audit(env, request, "settings.update", "setting", COMMUNITY_TITLE_KEY, "", { communityTitle, updatedAt });

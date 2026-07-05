@@ -41,7 +41,8 @@ const INITIAL_MEMBERS = seedRows.map((row, index) => ({
 }));
 
 const STORE_KEY = "seosanch-cell:v1";
-const DEFAULT_COMMUNITY_TITLE = "남아메리카 공동체";
+const DEFAULT_COMMUNITY_TITLE = "";
+const MISSING_COMMUNITY_TITLE = "설정에서 제목을 입력하세요";
 
 const state = {
   settings: {
@@ -469,8 +470,12 @@ function renderMembers() {
 
 function renderCommunityTitle() {
   const title = cleanTitle(state.settings?.communityTitle);
-  if (el.communityTitleText) el.communityTitleText.textContent = title;
-  document.title = `${title} 관리`;
+  const displayTitle = title || MISSING_COMMUNITY_TITLE;
+  if (el.communityTitleText) {
+    el.communityTitleText.textContent = displayTitle;
+    el.communityTitleText.classList.toggle("missing-title", !title);
+  }
+  document.title = title ? `${title} 관리` : "공동체 관리";
 }
 
 function memberGridHtml(members, isSearching) {
@@ -1860,7 +1865,7 @@ function closeSettings() {
 async function saveCommunityTitle() {
   const communityTitle = cleanTitle(el.communityTitleInput.value);
   if (!communityTitle) {
-    toast("상단 제목을 입력하세요");
+    toast("설정에서 제목을 입력하세요");
     el.communityTitleInput.focus();
     return;
   }
@@ -2374,7 +2379,7 @@ function today() {
 }
 
 function cleanTitle(value) {
-  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 40) || DEFAULT_COMMUNITY_TITLE;
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 40);
 }
 
 function escapeHtml(value) {

@@ -68,6 +68,17 @@ button {
   letter-spacing: 0;
 }
 
+.topbar .eyebrow {
+  margin-bottom: 8px;
+  font-size: clamp(17px, 2vw, 22px);
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.topbar .eyebrow.missing-title {
+  color: var(--accent);
+}
+
 h1,
 h2,
 h3,
@@ -79,6 +90,7 @@ p {
 h1 {
   margin-bottom: 0;
   font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.12;
   letter-spacing: 0;
 }
 
