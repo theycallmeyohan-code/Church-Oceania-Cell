@@ -2235,11 +2235,19 @@ button:disabled {
     display: inline-flex;
   }
 
-  .basic-info-jump-button,
+  .basic-info-jump-button {
+    display: inline-flex;
+  }
+
   .contact-member-wrap {
     display: inline-grid;
     gap: 6px;
     justify-items: start;
+  }
+
+  .basic-info-jump-button,
+  .contact-member-button {
+    white-space: nowrap;
   }
 
   .contact-member-button {
