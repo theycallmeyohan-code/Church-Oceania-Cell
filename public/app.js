@@ -1119,7 +1119,8 @@ function toggleVisitList() {
 function renderVisitListState(visitCount = state.visits.filter((visit) => visit.memberId === state.selectedMemberId).length) {
   const hasVisits = visitCount > 0;
   const collapsed = hasVisits && state.visitListCollapsed;
-  el.visitList.classList.toggle("hidden", collapsed);
+  el.visitList.closest(".visit-section")?.classList.toggle("empty", !hasVisits);
+  el.visitList.classList.toggle("collapsed", collapsed);
   el.visitListToggleBtn.classList.toggle("hidden", !hasVisits);
   el.visitListToggleBtn.classList.toggle("collapsed", collapsed);
   el.visitListToggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");

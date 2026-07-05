@@ -1070,11 +1070,19 @@ textarea:focus {
   gap: 9px;
 }
 
+.visit-list.collapsed {
+  gap: 7px;
+}
+
 .visit-item {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
   background: var(--paper);
+}
+
+.visit-list.collapsed .visit-item {
+  padding: 8px 10px;
 }
 
 .visit-item.editing {
@@ -1088,6 +1096,10 @@ textarea:focus {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 5px;
+}
+
+.visit-list.collapsed .visit-item-head {
+  margin-bottom: 3px;
 }
 
 .visit-item strong {
@@ -1104,11 +1116,24 @@ textarea:focus {
   height: 15px;
 }
 
+.visit-list.collapsed .visit-edit-button {
+  display: none;
+}
+
 .visit-item p {
   margin-bottom: 6px;
   color: var(--ink);
   line-height: 1.45;
   white-space: pre-line;
+}
+
+.visit-list.collapsed .visit-item p {
+  display: -webkit-box;
+  margin-bottom: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .visit-item small {
@@ -2349,6 +2374,10 @@ button:disabled {
     padding-top: 0;
     border-top: 0;
     display: block;
+  }
+
+  .visit-section.empty {
+    display: none;
   }
 
   .visit-member-summary {
