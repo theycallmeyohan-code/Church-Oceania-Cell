@@ -2420,7 +2420,7 @@ button:disabled {
 
   .visit-list {
     order: initial;
-    max-height: min(62dvh, 560px);
+    max-height: min(50dvh, 392px);
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -2431,7 +2431,7 @@ button:disabled {
   }
 
   .visit-list.collapsed {
-    max-height: min(60dvh, 476px);
+    max-height: min(48dvh, 372px);
   }
 
   .visit-entry {
