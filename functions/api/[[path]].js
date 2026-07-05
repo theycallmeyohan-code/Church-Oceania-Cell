@@ -1079,7 +1079,7 @@ function normalizeMember(body, fallbackId) {
     address: clean(body.address),
     memo: clean(body.memo),
     prayerRequests: clean(body.prayerRequests),
-    baptized: truthy(body.baptized) ? 1 : 0,
+    baptized: defaultTruthy(body.baptized) ? 1 : 0,
     longAbsent: truthy(body.longAbsent) ? 1 : 0,
     photoKey: clean(body.photoKey),
     archivedAt: clean(body.archivedAt),
@@ -1108,7 +1108,7 @@ function normalizeVisit(body) {
 function cellsWithPhotoUrls(members) {
   return members.map((member) => ({
     ...member,
-    baptized: truthy(member.baptized),
+    baptized: defaultTruthy(member.baptized),
     longAbsent: truthy(member.longAbsent),
     photoUrl: member.photoKey
       ? `/api/photos/${encodeURIComponent(member.photoKey)}`
@@ -1213,6 +1213,10 @@ function clean(value) {
 
 function truthy(value) {
   return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function defaultTruthy(value) {
+  return value === undefined || value === null || value === "" ? true : truthy(value);
 }
 
 function json(body, status = 200) {
