@@ -51,4 +51,4 @@ Apply the schema migrations:
 npx wrangler d1 migrations apply seosanch-cell-db --remote
 ```
 
-For production, enable Cloudflare Access and set secrets for `ADMIN_TOKEN` and `CALL_NOTE_TOKEN` if token-based API writes are used.
+For production, enable the login protection and set a strong site password/session secret. Use `CALL_NOTE_TOKEN` or `CALL_NOTE_WEBHOOK_TOKEN` only for the external Call Note webhook if you manage that token through Cloudflare environment variables.

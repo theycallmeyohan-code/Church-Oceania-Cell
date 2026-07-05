@@ -1160,9 +1160,9 @@ function normalizeDateValue(value, message) {
 }
 
 async function requireWriteAuth(request, env) {
-  if (!env.ADMIN_TOKEN) return;
-  const token = request.headers.get("X-Admin-Token") || bearer(request);
-  if (token !== env.ADMIN_TOKEN) throw new HttpError("Unauthorized", 401);
+  // Write APIs are already protected by functions/_middleware.js before this
+  // handler runs. Keep this hook so existing call sites stay explicit without
+  // asking logged-in users for a second ADMIN_TOKEN.
 }
 
 async function requireCallNoteAuth(request, env) {

@@ -958,17 +958,12 @@ async function callApi(url, options) {
   }
 }
 
-async function writeFetch(url, options = {}, retried = false) {
-  const token = localStorage.getItem("seosanch-cell:admin-token") || "";
+async function writeFetch(url, options = {}) {
   const headers = new Headers(options.headers || {});
-  if (token) headers.set("X-Admin-Token", token);
   const response = await fetch(url, { ...options, headers });
-  if (response.status === 401 && !retried) {
-    const nextToken = prompt("관리자 토큰을 입력하세요");
-    if (nextToken) {
-      localStorage.setItem("seosanch-cell:admin-token", nextToken.trim());
-      return writeFetch(url, options, true);
-    }
+  if (response.status === 401) {
+    localStorage.removeItem("seosanch-cell:admin-token");
+    window.location.href = "/__auth/login";
   }
   return response;
 }
