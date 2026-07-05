@@ -187,9 +187,30 @@ h1 {
   font-size: 12px;
 }
 
+.cell-tab .cell-tab-count {
+  justify-self: end;
+  min-width: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .cell-tab.active {
   border-color: var(--primary);
   background: #e8f1ed;
+  color: var(--primary-strong);
+}
+
+.cell-tab.active .cell-tab-count {
+  border-color: rgba(39, 106, 99, 0.32);
+  background: #d7e7e1;
   color: var(--primary-strong);
 }
 
@@ -1338,6 +1359,17 @@ button:disabled {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fffdf8;
+  cursor: pointer;
+}
+
+.attendance-summary:focus-visible {
+  outline: 0;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(39, 106, 99, 0.14);
 }
 
 .attendance-summary strong {
@@ -1573,6 +1605,13 @@ button:disabled {
 
 .attendance-name-group span {
   line-height: 1.5;
+}
+
+.attendance-name-group a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 .attendance-name-group .attendance-long-absent-names {
@@ -1840,6 +1879,21 @@ button:disabled {
     padding-right: 8px;
   }
 
+  #addMemberBtn {
+    flex-grow: 1.25;
+    flex-basis: calc(38% - 8px);
+    gap: 5px;
+    font-size: 12px;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  #addMemberBtn span {
+    min-width: 0;
+    white-space: normal;
+    word-break: keep-all;
+  }
+
   .workspace {
     display: block;
     padding: 10px;
@@ -1894,6 +1948,12 @@ button:disabled {
     color: var(--muted);
     font-size: 12px;
     font-weight: 900;
+  }
+
+  .cell-tab .cell-tab-count {
+    min-width: 34px;
+    padding: 3px 6px;
+    font-size: 11px;
   }
 
   .cell-tab.active {

@@ -120,6 +120,8 @@ function bindEvents() {
   el.attendanceDate.addEventListener("change", () => loadSundayAttendanceDate(el.attendanceDate.value));
   el.attendanceSaveBtn.addEventListener("click", saveSundayAttendance);
   el.attendanceClearBtn.addEventListener("click", clearSundayAttendance);
+  el.attendanceSummary.addEventListener("click", scrollToAttendanceResults);
+  el.attendanceSummary.addEventListener("keydown", handleAttendanceSummaryKeydown);
   el.attendanceMemberGrid.addEventListener("click", (event) => {
     const button = closestElement(event.target, "[data-attendance-member-id]");
     if (button) toggleSundayAttendanceMember(button.dataset.attendanceMemberId);
@@ -343,7 +345,7 @@ function renderCellTabs() {
       const count = state.members.filter((member) => member.cellId === cell.id && !member.archivedAt && !member.trashedAt).length;
       return `<button class="cell-tab ${cell.id === state.selectedCellId ? "active" : ""}" data-cell-id="${cell.id}" type="button">
         <strong>${cellNameHtml(cell.name)}</strong>
-        <span>${count}</span>
+        <span class="cell-tab-count">${count}명</span>
       </button>`;
     })
     .join("");
@@ -1210,11 +1212,11 @@ function renderAttendanceResults(members, presentIds) {
     </section>
     <section class="attendance-result-column">
       <h3>결석 ${absentMembers.length}명</h3>
-      ${attendanceNamesByCellHtml(absentMembers)}
+      ${attendanceNamesByCellHtml(absentMembers, { linkPhones: true })}
     </section>`;
 }
 
-function attendanceNamesByCellHtml(members) {
+function attendanceNamesByCellHtml(members, options = {}) {
   if (!members.length) return '<p class="attendance-empty">명단 없음</p>';
   return groupedAttendanceMembers(members, new Set(members.map((member) => member.id)))
     .map((group) => {
@@ -1222,11 +1224,27 @@ function attendanceNamesByCellHtml(members) {
       const longAbsentMembers = group.members.filter((member) => member.longAbsent);
       return `<div class="attendance-name-group">
         <strong>${escapeHtml(group.cellName)}</strong>
-        ${regularMembers.length ? `<span>${regularMembers.map((member) => escapeHtml(member.name)).join(", ")}</span>` : ""}
-        ${longAbsentMembers.length ? `<span class="attendance-long-absent-names">장기결석: ${longAbsentMembers.map((member) => escapeHtml(member.name)).join(", ")}</span>` : ""}
+        ${regularMembers.length ? `<span>${attendanceNameListHtml(regularMembers, options)}</span>` : ""}
+        ${longAbsentMembers.length ? `<span class="attendance-long-absent-names">장기결석: ${attendanceNameListHtml(longAbsentMembers, options)}</span>` : ""}
       </div>`;
     })
     .join("");
+}
+
+function attendanceNameListHtml(members, options = {}) {
+  return members.map((member) => attendanceNameHtml(member, options)).join(", ");
+}
+
+function attendanceNameHtml(member, options = {}) {
+  const name = escapeHtml(member.name);
+  if (!options.linkPhones) return name;
+  const phone = callablePhoneNumber(member);
+  if (!phone) return name;
+  return `<a href="tel:${escapeAttribute(phone)}">${name}</a>`;
+}
+
+function callablePhoneNumber(member) {
+  return normalizePhoneSearch(member.phone || member.homePhone || "");
 }
 
 function groupedAttendanceMembers(members, presentIds) {
@@ -1289,6 +1307,8 @@ function attendanceRecordToMember(record) {
     name: record.memberName,
     title: record.memberTitle || "",
     role: record.memberRole || "",
+    phone: current?.phone || "",
+    homePhone: current?.homePhone || "",
     registeredAt: current?.registeredAt || "",
     longAbsent: Boolean(record.memberLongAbsent),
     cellSortOrder: Number(record.cellSortOrder || cellSortRank(record.cellId)),
@@ -1321,6 +1341,16 @@ function toggleSundayAttendanceMember(memberId) {
 function clearSundayAttendance() {
   state.attendancePresentIds = [];
   renderSundayAttendance();
+}
+
+function scrollToAttendanceResults() {
+  el.attendanceResults.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function handleAttendanceSummaryKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  scrollToAttendanceResults();
 }
 
 function captureAttendanceScroll() {
