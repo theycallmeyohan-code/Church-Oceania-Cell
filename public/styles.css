@@ -1303,23 +1303,19 @@ button:disabled {
 .attendance-button,
 .mobile-back-button,
 .basic-info-jump-button,
-.contact-member-button {
+.contact-member-wrap {
   flex: 0 0 auto;
 }
 
 .mobile-back-button,
 .basic-info-jump-button,
-.contact-member-button,
+.contact-member-wrap,
 .contact-member-actions,
 .visit-member-summary {
   display: none;
 }
 
 .contact-member-actions {
-  position: absolute;
-  top: 54px;
-  left: 0;
-  z-index: 4;
   gap: 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2240,12 +2236,24 @@ button:disabled {
   }
 
   .basic-info-jump-button,
+  .contact-member-wrap {
+    display: inline-grid;
+    gap: 6px;
+    justify-items: start;
+  }
+
   .contact-member-button {
     display: inline-flex;
+    border-color: #2f7d55;
+    background: #2f8f5f;
+    color: #fff;
   }
 
   .contact-member-button:disabled {
     cursor: not-allowed;
+    border-color: var(--line);
+    background: var(--paper);
+    color: var(--muted);
   }
 
   .contact-member-actions:not(.hidden) {
