@@ -577,6 +577,13 @@ h1 {
   margin-bottom: 0;
 }
 
+.section-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .panel-title {
   min-width: 0;
   display: flex;
@@ -1013,10 +1020,28 @@ textarea:focus {
   margin: 0;
 }
 
-.section-head span {
+.section-title-row span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.visit-list-toggle-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.visit-list-toggle-button svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(180deg);
+  transition: transform 0.18s ease;
+}
+
+.visit-list-toggle-button.collapsed svg {
+  transform: rotate(0deg);
 }
 
 .visit-entry {
@@ -2110,6 +2135,10 @@ button:disabled {
 
   body.detail-active .topbar {
     display: none;
+  }
+
+  body.detail-active .workspace {
+    padding-top: max(34px, calc(env(safe-area-inset-top) + 22px));
   }
 
   .workspace {

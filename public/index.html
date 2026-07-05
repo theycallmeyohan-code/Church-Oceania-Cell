@@ -259,8 +259,16 @@
             <section class="visit-section">
               <div class="visit-member-summary" id="visitMemberSummary"></div>
               <div class="section-head">
-                <h4>심방내역</h4>
-                <span id="visitCount">0건</span>
+                <div class="section-title-row">
+                  <h4>심방내역</h4>
+                  <span id="visitCount">0건</span>
+                </div>
+                <button class="icon-button text-button subtle visit-list-toggle-button" id="visitListToggleBtn" type="button" aria-expanded="true" aria-controls="visitList">
+                  <span>접기</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6"></path>
+                  </svg>
+                </button>
               </div>
               <div id="visitList" class="visit-list"></div>
             </section>

@@ -65,6 +65,7 @@ const state = {
   returnToAttendanceDate: "",
   callNoteImports: [],
   editingVisitId: "",
+  visitListCollapsed: false,
   apiOnline: false
 };
 
@@ -93,7 +94,7 @@ function bindElements() {
     "photoInput", "memberName", "memberTitle", "memberCell",
     "memberRole", "memberBaptismStatus", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthCalendar", "memberRegisteredAt", "memberRegisteredAtPicker", "memberRegisteredAtPickerBtn", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
-    "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitMemberSummary", "visitList",
+    "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitMemberSummary", "visitListToggleBtn", "visitList",
     "toast"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
@@ -159,6 +160,7 @@ function bindEvents() {
   el.visitRecordModal.addEventListener("click", (event) => {
     if (event.target === el.visitRecordModal) closeVisitRecord();
   });
+  el.visitListToggleBtn.addEventListener("click", toggleVisitList);
   el.backToListBtn.addEventListener("click", closeDetail);
   el.basicInfoJumpBtn.addEventListener("click", jumpToBasicInfo);
   el.contactMemberBtn.addEventListener("click", toggleContactActions);
@@ -681,6 +683,7 @@ function selectMember(memberId) {
   state.mode = "view";
   state.pendingPhotoData = null;
   state.editingVisitId = "";
+  state.visitListCollapsed = isMobileView();
   persist();
   renderCellTabs();
   renderMembers();
@@ -745,6 +748,7 @@ function startNewMember() {
   if (draft) {
     state.selectedCellId = draft.cellId || state.selectedCellId;
     state.selectedMemberId = draft.id;
+    state.visitListCollapsed = isMobileView();
     render();
     scrollToSelectedDetail();
     el.memberName.focus();
@@ -778,6 +782,7 @@ function startNewMember() {
   state.members.push(member);
   state.selectedMemberId = member.id;
   state.pendingPhotoData = null;
+  state.visitListCollapsed = isMobileView();
   render();
   scrollToSelectedDetail();
   el.memberName.focus();
@@ -1051,6 +1056,7 @@ function startVisitEdit(visitId) {
   const member = selectedMember();
   if (!visit || !member || visit.memberId !== member.id) return;
   state.editingVisitId = visit.id;
+  state.visitListCollapsed = false;
   renderVisits(member.id);
   el.visitDate.value = visit.visitDate || today();
   el.visitType.value = visit.visitType || el.visitType.options[0]?.value || "";
@@ -1102,6 +1108,22 @@ function renderVisits(memberId) {
   el.visitList.querySelectorAll("[data-visit-edit-id]").forEach((button) => {
     button.addEventListener("click", () => startVisitEdit(button.dataset.visitEditId));
   });
+  renderVisitListState(visits.length);
+}
+
+function toggleVisitList() {
+  state.visitListCollapsed = !state.visitListCollapsed;
+  renderVisitListState();
+}
+
+function renderVisitListState(visitCount = state.visits.filter((visit) => visit.memberId === state.selectedMemberId).length) {
+  const hasVisits = visitCount > 0;
+  const collapsed = hasVisits && state.visitListCollapsed;
+  el.visitList.classList.toggle("hidden", collapsed);
+  el.visitListToggleBtn.classList.toggle("hidden", !hasVisits);
+  el.visitListToggleBtn.classList.toggle("collapsed", collapsed);
+  el.visitListToggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  el.visitListToggleBtn.querySelector("span").textContent = collapsed ? "펼치기" : "접기";
 }
 
 async function callApi(url, options) {
