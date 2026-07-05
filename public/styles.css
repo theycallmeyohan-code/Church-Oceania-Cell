@@ -749,11 +749,33 @@ label.check-field input {
   min-height: 40px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 0 12px;
   color: var(--primary-strong);
   font-size: 13px;
   font-weight: 900;
+  list-style: none;
   cursor: pointer;
+}
+
+.profile-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-details summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.profile-details[open] summary::after {
+  transform: rotate(225deg);
 }
 
 .profile-details-grid {
@@ -1301,14 +1323,12 @@ button:disabled {
 
 .visit-dates-button,
 .attendance-button,
-.top-list-back-button,
 .mobile-back-button,
 .basic-info-jump-button,
 .contact-member-wrap {
   flex: 0 0 auto;
 }
 
-.top-list-back-button,
 .mobile-back-button,
 .basic-info-jump-button,
 .contact-member-wrap,
@@ -2088,29 +2108,8 @@ button:disabled {
     word-break: keep-all;
   }
 
-  body.detail-active #addMemberBtn,
-  body.detail-active .top-list-back-button {
-    flex: 1 1 calc(50% - 5px);
-    min-width: 0;
-    min-height: 40px;
-    padding-left: 8px;
-    padding-right: 8px;
-    font-size: 12px;
-    line-height: 1.15;
-    white-space: nowrap;
-  }
-
-  body.detail-active #addMemberBtn {
-    flex-grow: 1;
-    flex-basis: calc(50% - 5px);
-  }
-
-  body.detail-active #addMemberBtn span {
-    white-space: nowrap;
-  }
-
-  body.detail-active .top-list-back-button {
-    display: inline-flex;
+  body.detail-active .topbar {
+    display: none;
   }
 
   .workspace {
@@ -2271,7 +2270,7 @@ button:disabled {
   }
 
   .mobile-back-button {
-    display: none;
+    display: inline-flex;
   }
 
   .basic-info-jump-button {
