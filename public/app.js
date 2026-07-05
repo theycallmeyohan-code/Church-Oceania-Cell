@@ -1298,16 +1298,38 @@ function compareAttendanceMembers(a, b) {
 }
 
 function toggleSundayAttendanceMember(memberId) {
+  const scrollState = captureAttendanceScroll();
   const presentIds = new Set(state.attendancePresentIds);
   if (presentIds.has(memberId)) presentIds.delete(memberId);
   else presentIds.add(memberId);
   state.attendancePresentIds = Array.from(presentIds);
   renderSundayAttendance();
+  restoreAttendanceScroll(scrollState);
 }
 
 function clearSundayAttendance() {
   state.attendancePresentIds = [];
   renderSundayAttendance();
+}
+
+function captureAttendanceScroll() {
+  const dialog = el.attendanceModal.querySelector(".attendance-dialog");
+  return {
+    dialog,
+    dialogTop: dialog?.scrollTop || 0,
+    modalTop: el.attendanceModal.scrollTop || 0,
+    windowTop: window.scrollY || 0
+  };
+}
+
+function restoreAttendanceScroll(stateToRestore) {
+  const restore = () => {
+    if (stateToRestore.dialog) stateToRestore.dialog.scrollTop = stateToRestore.dialogTop;
+    el.attendanceModal.scrollTop = stateToRestore.modalTop;
+    window.scrollTo(window.scrollX, stateToRestore.windowTop);
+  };
+  restore();
+  requestAnimationFrame(restore);
 }
 
 function shiftSundayAttendanceDate(dayOffset) {
