@@ -23,7 +23,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="/favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="./styles.css?v=new-member-2">
+    <link rel="stylesheet" href="./styles.css?v=call-note-webhook-1">
   </head>
   <body>
     <div class="app-shell">
@@ -76,7 +76,7 @@
           <div id="cellTabs" class="cell-tabs"></div>
           <label class="archive-toggle">
             <input id="showArchived" type="checkbox">
-            <span>보관 포함</span>
+            <span>제적처리 포함</span>
           </label>
         </aside>
 
@@ -88,7 +88,7 @@
             </div>
             <div class="sheet-stats">
               <span id="activeCount">0명</span>
-              <span id="archivedCount">보관 0명</span>
+              <span id="archivedCount">제적처리 0명</span>
             </div>
           </div>
           <div id="memberGrid" class="member-grid"></div>
@@ -113,18 +113,16 @@
                 </svg>
                 <span>명단</span>
               </button>
+              <button class="icon-button text-button subtle basic-info-jump-button" id="basicInfoJumpBtn" type="button" title="기본정보로 이동" aria-label="기본정보로 이동">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 21a8 8 0 0 0-16 0"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>기본정보</span>
+              </button>
               <div class="panel-title">
                 <p id="formMode" class="hidden-title">상세</p>
                 <h3 id="formTitle" class="hidden-title">성도 정보</h3>
-                <label class="icon-button photo-button photo-change-button" title="사진 추가/수정" aria-label="사진 추가/수정">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="3" y="5" width="18" height="14" rx="2"></rect>
-                    <circle cx="8.5" cy="10.5" r="1.5"></circle>
-                    <path d="m21 15-4.5-4.5L5 19"></path>
-                  </svg>
-                  <span>사진 추가/수정</span>
-                  <input id="photoInput" type="file" accept="image/*">
-                </label>
               </div>
               <button class="icon-button text-button subtle" id="closePanelBtn" type="button" title="닫기" aria-label="닫기">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -134,33 +132,54 @@
               </button>
             </div>
 
-            <div class="portrait-editor">
+            <div class="portrait-editor" id="basicInfoSection">
               <div id="photoPreview" class="portrait large"></div>
               <div class="identity-grid">
                 <label>이름<input id="memberName" required></label>
                 <label>직분<input id="memberTitle"></label>
-                <label>셀<select id="memberCell"></select></label>
-                <label>역할<select id="memberRole"></select></label>
-                <label class="wide">교회등록일<input id="memberRegisteredAt" type="date"></label>
+                <div class="identity-actions wide">
+                  <label class="icon-button photo-button photo-change-button" title="사진 추가/수정" aria-label="사진 추가/수정">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                      <circle cx="8.5" cy="10.5" r="1.5"></circle>
+                      <path d="m21 15-4.5-4.5L5 19"></path>
+                    </svg>
+                    <span>사진 추가/수정</span>
+                    <input id="photoInput" type="file" accept="image/*">
+                  </label>
+                  <button class="icon-button text-button visit-record-button" id="openVisitRecordBtn" type="button" title="심방기록" aria-label="심방기록">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M8 6h13M8 12h13M8 18h13"></path>
+                      <path d="M3 6h.01M3 12h.01M3 18h.01"></path>
+                    </svg>
+                    <span>심방기록</span>
+                  </button>
+                </div>
               </div>
             </div>
 
+            <details class="profile-details" id="profileDetails">
+              <summary>신상내역</summary>
+              <div class="profile-details-grid">
+                <label>셀<select id="memberCell"></select></label>
+                <label>역할<select id="memberRole"></select></label>
+                <label>전화<input id="memberPhone" inputmode="tel"></label>
+                <label>집전화<input id="memberHomePhone" inputmode="tel"></label>
+                <label>생년월일<input id="memberBirth" type="date"></label>
+                <label class="age-field">나이
+                  <div class="age-with-calendar">
+                    <input id="memberAge" class="age-output" readonly tabindex="-1">
+                    <span id="memberCalendar" class="calendar-badge hidden">음력</span>
+                  </div>
+                </label>
+                <label class="wide">주소<input id="memberAddress"></label>
+                <label class="wide">교회등록일<input id="memberRegisteredAt" type="date"></label>
+              </div>
+            </details>
+
             <div class="form-grid">
-              <label>전화<input id="memberPhone" inputmode="tel"></label>
-              <label>집전화<input id="memberHomePhone" inputmode="tel"></label>
-              <label>생년월일<input id="memberBirth" type="date"></label>
-              <label class="age-field">나이
-                <div class="age-with-calendar">
-                  <input id="memberAge" class="age-output" readonly tabindex="-1">
-                  <span id="memberCalendar" class="calendar-badge hidden">음력</span>
-                </div>
-              </label>
-              <label class="wide">주소<input id="memberAddress"></label>
-              <label class="wide check-field">
-                <input id="memberLongAbsent" type="checkbox">
-                <span>장기결석자</span>
-              </label>
               <label class="wide">가족/메모<textarea id="memberMemo" rows="3"></textarea></label>
+              <label class="wide">기도제목<textarea id="memberPrayer" rows="3"></textarea></label>
             </div>
 
             <div class="button-row">
@@ -175,19 +194,34 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M21 8H3l2-4h14l2 4ZM5 8v11h14V8M10 12h4"></path>
                 </svg>
-                보관
+                제적처리
               </button>
+              <label class="check-field long-absent-toggle">
+                <input id="memberLongAbsent" type="checkbox">
+                <span>장기결석자</span>
+              </label>
               <button class="icon-button text-button subtle hidden" id="restoreBtn" type="button">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M3 12a9 9 0 1 0 3-6.7M3 4v6h6"></path>
                 </svg>
-                복구
+                제적처리 해제
               </button>
-              <button class="icon-button text-button danger" id="deleteBtn" type="button">
+            </div>
+            <div class="bottom-actions-row">
+              <details class="danger-zone">
+                <summary>더보기</summary>
+                <button class="icon-button text-button danger" id="deleteBtn" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"></path>
+                  </svg>
+                  휴지통으로 이동
+                </button>
+              </details>
+              <button class="icon-button text-button subtle bottom-back-button" id="bottomBackToListBtn" type="button" title="명단으로" aria-label="명단으로">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"></path>
+                  <path d="M19 12H5M12 19l-7-7 7-7"></path>
                 </svg>
-                완전 삭제
+                <span>명단</span>
               </button>
             </div>
 
@@ -195,24 +229,6 @@
               <div class="section-head">
                 <h4>심방내역</h4>
                 <span id="visitCount">0건</span>
-              </div>
-              <div class="visit-entry">
-                <input id="visitDate" type="date">
-                <select id="visitType">
-                  <option>전화</option>
-                  <option>심방</option>
-                  <option>상담</option>
-                  <option>기도</option>
-                </select>
-                <textarea id="visitSummary" rows="3" placeholder="요약"></textarea>
-                <input id="visitPrayer" placeholder="기도제목">
-                <input id="visitAction" placeholder="후속 조치">
-                <button class="icon-button text-button" id="addVisitBtn" type="button">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14"></path>
-                  </svg>
-                  추가
-                </button>
               </div>
               <div id="visitList" class="visit-list"></div>
             </section>
@@ -290,8 +306,67 @@
             <span>닫기</span>
           </button>
         </div>
-        <div id="visitDateChips" class="visit-date-chips"></div>
+        <div class="visit-calendar-toolbar">
+          <button class="icon-button subtle" id="visitMonthPrevBtn" type="button" title="이전 달" aria-label="이전 달">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m15 18-6-6 6-6"></path>
+            </svg>
+          </button>
+          <strong id="visitMonthLabel" class="visit-month-label">달력</strong>
+          <button class="icon-button subtle" id="visitMonthNextBtn" type="button" title="다음 달" aria-label="다음 달">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 18 6-6-6-6"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="visit-calendar-weekdays" aria-hidden="true">
+          <span>일</span>
+          <span>월</span>
+          <span>화</span>
+          <span>수</span>
+          <span>목</span>
+          <span>금</span>
+          <span>토</span>
+        </div>
+        <div id="visitCalendar" class="visit-calendar-grid"></div>
+        <div id="visitDateSelectedLabel" class="visit-date-selected"></div>
         <div id="visitDateEntries" class="visit-date-entries"></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop hidden" id="visitRecordModal" aria-hidden="true">
+      <section class="visit-record-dialog" aria-labelledby="visitRecordTitle">
+        <div class="settings-head">
+          <div>
+            <p class="eyebrow">심방내역</p>
+            <h2 id="visitRecordTitle">심방기록</h2>
+          </div>
+          <button class="icon-button text-button subtle" id="visitRecordCloseBtn" type="button" title="닫기" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12"></path>
+            </svg>
+            <span>닫기</span>
+          </button>
+        </div>
+        <div class="visit-entry visit-entry-modal">
+          <input id="visitDate" type="date">
+          <select id="visitType">
+            <option>전화</option>
+            <option>심방</option>
+            <option>상담</option>
+            <option>기도</option>
+          </select>
+          <textarea id="visitSummary" rows="7" placeholder="요약"></textarea>
+          <div class="visit-entry-actions">
+            <button class="icon-button text-button" id="addVisitBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"></path>
+              </svg>
+              <span id="visitSubmitLabel">추가</span>
+            </button>
+            <button class="icon-button text-button subtle hidden" id="cancelVisitEditBtn" type="button">취소</button>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -314,6 +389,26 @@
           <label>새 비밀번호<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
           <label>새 비밀번호 확인<input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></label>
         </div>
+        <section class="call-note-settings">
+          <div class="call-note-head">
+            <div>
+              <h3>콜노트 연동</h3>
+              <p>심방콜노트 앱에서 보낸 기록 중 확인이 필요한 항목입니다.</p>
+            </div>
+            <button class="icon-button text-button subtle" id="callNoteRefreshBtn" type="button">
+              새로고침
+            </button>
+          </div>
+          <label class="webhook-url-field">Webhook URL
+            <input id="callNoteWebhookUrl" readonly>
+          </label>
+          <div class="call-note-token-row">
+            <button class="icon-button text-button primary" id="callNoteTokenBtn" type="button">웹훅 토큰 생성</button>
+            <input id="callNoteTokenOutput" readonly placeholder="생성된 토큰이 여기에 표시됩니다">
+          </div>
+          <div id="callNoteStatus" class="call-note-status">토큰은 앱의 Webhook 설정에 따로 입력합니다.</div>
+          <div id="callNoteInbox" class="call-note-inbox"></div>
+        </section>
         <div class="button-row settings-actions">
           <button class="icon-button text-button primary" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -329,6 +424,6 @@
     </div>
     <div id="toast" class="toast" role="status"></div>
     <script src="./member-details.js?v=member-details-4"></script>
-    <script src="./app.js?v=new-member-2"></script>
+    <script src="./app.js?v=call-note-webhook-1"></script>
   </body>
 </html>

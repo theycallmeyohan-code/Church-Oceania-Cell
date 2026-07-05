@@ -52,10 +52,13 @@ const state = {
   mode: "view",
   pendingPhotoData: null,
   selectedVisitDate: "",
+  selectedVisitMonth: "",
   attendanceSessions: [],
   attendanceDate: "",
   attendanceRecords: [],
   attendancePresentIds: [],
+  callNoteImports: [],
+  editingVisitId: "",
   apiOnline: false
 };
 
@@ -79,12 +82,12 @@ function bindElements() {
     "activeCount", "archivedCount", "addMemberBtn", "visitDatesBtn", "attendanceBtn", "attendanceModal", "attendanceCloseBtn", "attendancePrevBtn", "attendanceNextBtn",
     "attendanceDate", "attendanceDateLabel", "attendanceHistory", "attendanceSummary", "attendanceCellStats", "attendanceMemberGrid", "attendanceResults",
     "attendanceSaveBtn", "attendanceClearBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn",
-    "currentPassword", "newPassword", "confirmPassword", "visitDatesModal", "visitDatesCloseBtn", "visitDateChips", "visitDateEntries", "detailPanel", "emptyDetail",
-    "memberForm", "formMode", "formTitle", "backToListBtn", "closePanelBtn", "photoPreview",
+    "currentPassword", "newPassword", "confirmPassword", "callNoteRefreshBtn", "callNoteWebhookUrl", "callNoteTokenBtn", "callNoteTokenOutput", "callNoteStatus", "callNoteInbox", "visitDatesModal", "visitDatesCloseBtn", "visitMonthPrevBtn", "visitMonthNextBtn", "visitMonthLabel", "visitCalendar", "visitDateSelectedLabel", "visitDateEntries", "visitRecordModal", "visitRecordCloseBtn", "detailPanel", "emptyDetail",
+    "memberForm", "formMode", "formTitle", "backToListBtn", "basicInfoJumpBtn", "bottomBackToListBtn", "closePanelBtn", "photoPreview", "profileDetails", "openVisitRecordBtn",
     "photoInput", "memberName", "memberTitle", "memberCell",
-    "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo",
+    "memberRole", "memberPhone", "memberHomePhone", "memberBirth", "memberRegisteredAt", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
-    "visitType", "visitSummary", "visitPrayer", "visitAction", "addVisitBtn", "visitList",
+    "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitList",
     "toast"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
@@ -127,7 +130,16 @@ function bindEvents() {
   el.visitDatesModal.addEventListener("click", (event) => {
     if (event.target === el.visitDatesModal) closeVisitDates();
   });
+  el.visitMonthPrevBtn.addEventListener("click", () => shiftVisitCalendarMonth(-1));
+  el.visitMonthNextBtn.addEventListener("click", () => shiftVisitCalendarMonth(1));
+  el.openVisitRecordBtn.addEventListener("click", openVisitRecord);
+  el.visitRecordCloseBtn.addEventListener("click", closeVisitRecord);
+  el.visitRecordModal.addEventListener("click", (event) => {
+    if (event.target === el.visitRecordModal) closeVisitRecord();
+  });
   el.backToListBtn.addEventListener("click", closeDetail);
+  el.basicInfoJumpBtn.addEventListener("click", jumpToBasicInfo);
+  el.bottomBackToListBtn.addEventListener("click", closeDetail);
   el.settingsBtn.addEventListener("click", openSettings);
   el.settingsCloseBtn.addEventListener("click", closeSettings);
   el.settingsCancelBtn.addEventListener("click", closeSettings);
@@ -135,6 +147,9 @@ function bindEvents() {
     if (event.target === el.settingsModal) closeSettings();
   });
   el.settingsForm.addEventListener("submit", changePassword);
+  el.callNoteRefreshBtn.addEventListener("click", loadCallNoteImports);
+  el.callNoteTokenBtn.addEventListener("click", generateCallNoteToken);
+  el.callNoteInbox.addEventListener("click", handleCallNoteInboxClick);
   el.logoutBtn.addEventListener("click", () => {
     window.location.href = "/__auth/logout";
   });
@@ -147,6 +162,7 @@ function bindEvents() {
   el.restoreBtn.addEventListener("click", restoreSelected);
   el.deleteBtn.addEventListener("click", deleteSelected);
   el.addVisitBtn.addEventListener("click", addVisit);
+  el.cancelVisitEditBtn.addEventListener("click", cancelVisitEdit);
 }
 
 function populateRoleOptions() {
@@ -299,7 +315,7 @@ function renderCellTabs() {
     .slice()
     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
     .map((cell) => {
-      const count = state.members.filter((member) => member.cellId === cell.id && !member.archivedAt).length;
+      const count = state.members.filter((member) => member.cellId === cell.id && !member.archivedAt && !member.trashedAt).length;
       return `<button class="cell-tab ${cell.id === state.selectedCellId ? "active" : ""}" data-cell-id="${cell.id}" type="button">
         <strong>${cellNameHtml(cell.name)}</strong>
         <span>${count}</span>
@@ -337,27 +353,28 @@ function renderMembers() {
 
   const rawQuery = state.query.trim();
   const isSearching = Boolean(rawQuery);
-  const allInCell = state.members.filter((member) => member.cellId === cell.id);
+  const availableMembers = state.members.filter((member) => !member.trashedAt);
+  const allInCell = availableMembers.filter((member) => member.cellId === cell.id);
   const active = allInCell.filter((member) => !member.archivedAt);
   const archived = allInCell.filter((member) => member.archivedAt);
 
-  const baseMembers = isSearching ? state.members : allInCell;
+  const baseMembers = isSearching ? availableMembers : allInCell;
   const visible = baseMembers
     .filter((member) => state.showArchived || !member.archivedAt)
     .filter((member) => !isSearching || memberMatchesSearch(member, rawQuery))
     .sort((a, b) => compareMembersForDisplay(a, b, isSearching));
 
   if (isSearching) {
-    const archivedMatches = state.members.filter((member) => member.archivedAt && memberMatchesSearch(member, rawQuery)).length;
+    const archivedMatches = availableMembers.filter((member) => member.archivedAt && memberMatchesSearch(member, rawQuery)).length;
     el.cellTitle.textContent = "\uC804\uCCB4 \uAC80\uC0C9 \uACB0\uACFC";
     el.cellMeta.textContent = rawQuery;
     el.activeCount.textContent = `\uAC80\uC0C9 ${visible.length}\uBA85`;
-    el.archivedCount.textContent = state.showArchived ? "\uBCF4\uAD00 \uD3EC\uD568" : (archivedMatches ? `\uBCF4\uAD00 ${archivedMatches}\uBA85 \uC228\uAE40` : "\uBCF4\uAD00 \uC81C\uC678");
+    el.archivedCount.textContent = state.showArchived ? "제적처리 포함" : (archivedMatches ? `제적처리 ${archivedMatches}명 숨김` : "제적처리 제외");
   } else {
     el.cellTitle.textContent = cell.name;
     el.cellMeta.textContent = cell.meta || cell.gender || "";
     el.activeCount.textContent = `${active.length}\uBA85`;
-    el.archivedCount.textContent = `\uBCF4\uAD00 ${archived.length}\uBA85`;
+    el.archivedCount.textContent = `제적처리 ${archived.length}명`;
   }
 
   if (!visible.length) {
@@ -525,6 +542,7 @@ function selectMember(memberId) {
   state.selectedMemberId = memberId;
   state.mode = "view";
   state.pendingPhotoData = null;
+  state.editingVisitId = "";
   persist();
   renderCellTabs();
   renderMembers();
@@ -535,6 +553,7 @@ function selectMember(memberId) {
 function renderDetail() {
   const member = selectedMember();
   if (!member) {
+    hideVisitRecord();
     el.emptyDetail.classList.remove("hidden");
     el.memberForm.classList.add("hidden");
     return;
@@ -562,6 +581,9 @@ function renderDetail() {
   el.memberAddress.value = member.address || "";
   el.memberLongAbsent.checked = Boolean(member.longAbsent);
   el.memberMemo.value = member.memo || "";
+  el.memberPrayer.value = member.prayerRequests || "";
+  el.profileDetails.open = false;
+  hideVisitRecord();
   el.archiveBtn.classList.toggle("hidden", Boolean(member.archivedAt));
   el.restoreBtn.classList.toggle("hidden", !member.archivedAt);
   el.deleteBtn.classList.toggle("hidden", member.id.startsWith("new-"));
@@ -583,10 +605,12 @@ function startNewMember() {
     registeredAt: "",
     address: "",
     memo: "",
+    prayerRequests: "",
     longAbsent: false,
     photoUrl: "",
     photoKey: "",
     archivedAt: "",
+    trashedAt: "",
     createdAt: now,
     updatedAt: now
   };
@@ -615,7 +639,8 @@ async function saveMember(event) {
     registeredAt: el.memberRegisteredAt.value.trim(),
     address: el.memberAddress.value.trim(),
     longAbsent: el.memberLongAbsent.checked,
-    memo: el.memberMemo.value.trim()
+    memo: el.memberMemo.value.trim(),
+    prayerRequests: el.memberPrayer.value.trim()
   };
 
   if (!payload.name) {
@@ -723,7 +748,7 @@ function archiveSelected() {
   callApi(`/api/members/${encodeURIComponent(member.id)}/archive`, { method: "POST" });
   persist();
   render();
-  toast("보관되었습니다");
+  toast("제적처리했습니다");
 }
 
 function restoreSelected() {
@@ -734,21 +759,47 @@ function restoreSelected() {
   callApi(`/api/members/${encodeURIComponent(member.id)}/restore`, { method: "POST" });
   persist();
   render();
-  toast("복구되었습니다");
+  toast("제적처리 해제했습니다");
 }
 
 function deleteSelected() {
   const member = selectedMember();
   if (!member) return;
-  const ok = confirm(`${member.name} 성도 정보를 완전히 삭제할까요?`);
+  const ok = confirm(`${member.name} 성도님을 휴지통으로 이동할까요?\n명단, 검색, 출석체크에서 보이지 않게 됩니다.`);
   if (!ok) return;
-  state.members = state.members.filter((item) => item.id !== member.id);
-  state.visits = state.visits.filter((visit) => visit.memberId !== member.id);
-  callApi(`/api/members/${encodeURIComponent(member.id)}`, { method: "DELETE" });
+  member.trashedAt = new Date().toISOString();
+  member.updatedAt = member.trashedAt;
+  callApi(`/api/members/${encodeURIComponent(member.id)}/trash`, { method: "POST" });
   state.selectedMemberId = "";
   persist();
   render();
-  toast("삭제되었습니다");
+  toast("휴지통으로 이동했습니다");
+}
+
+function openVisitRecord() {
+  const member = selectedMember();
+  if (!member) return;
+  if (!state.editingVisitId) resetVisitForm();
+  showVisitRecord();
+}
+
+function showVisitRecord() {
+  el.visitRecordModal.classList.remove("hidden");
+  el.visitRecordModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => el.visitSummary.focus(), 0);
+}
+
+function hideVisitRecord() {
+  el.visitRecordModal.classList.add("hidden");
+  el.visitRecordModal.setAttribute("aria-hidden", "true");
+}
+
+function closeVisitRecord() {
+  state.editingVisitId = "";
+  resetVisitForm();
+  hideVisitRecord();
+  const member = selectedMember();
+  if (member) renderVisits(member.id);
 }
 
 function addVisit() {
@@ -760,14 +811,18 @@ function addVisit() {
     el.visitSummary.focus();
     return;
   }
+
+  if (state.editingVisitId) {
+    updateVisit(member, summary);
+    return;
+  }
+
   const visit = {
     id: `visit-${crypto.randomUUID()}`,
     memberId: member.id,
     visitDate: el.visitDate.value || today(),
     visitType: el.visitType.value,
     summary,
-    prayer: el.visitPrayer.value.trim(),
-    action: el.visitAction.value.trim(),
     source: "manual",
     createdAt: new Date().toISOString()
   };
@@ -777,13 +832,74 @@ function addVisit() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(visit)
   });
-  el.visitSummary.value = "";
-  el.visitPrayer.value = "";
-  el.visitAction.value = "";
+  resetVisitForm();
   persist();
   renderVisits(member.id);
+  hideVisitRecord();
   if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
   toast("심방내역이 추가되었습니다");
+}
+
+function updateVisit(member, summary) {
+  const visit = state.visits.find((item) => item.id === state.editingVisitId && item.memberId === member.id);
+  if (!visit) {
+    cancelVisitEdit();
+    return;
+  }
+
+  const updated = {
+    ...visit,
+    visitDate: el.visitDate.value || today(),
+    visitType: el.visitType.value,
+    summary,
+    prayer: ""
+  };
+  state.visits = state.visits.map((item) => item.id === updated.id ? updated : item);
+  callApi(`/api/visit-notes/${encodeURIComponent(updated.id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updated)
+  });
+  state.editingVisitId = "";
+  resetVisitForm();
+  persist();
+  renderVisits(member.id);
+  hideVisitRecord();
+  if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
+  toast("심방내역을 수정했습니다");
+}
+
+function startVisitEdit(visitId) {
+  const visit = state.visits.find((item) => item.id === visitId);
+  const member = selectedMember();
+  if (!visit || !member || visit.memberId !== member.id) return;
+  state.editingVisitId = visit.id;
+  renderVisits(member.id);
+  el.visitDate.value = visit.visitDate || today();
+  el.visitType.value = visit.visitType || el.visitType.options[0]?.value || "";
+  el.visitSummary.value = visitSummaryText(visit);
+  setVisitFormMode();
+  showVisitRecord();
+}
+
+function cancelVisitEdit() {
+  state.editingVisitId = "";
+  resetVisitForm();
+  hideVisitRecord();
+  const member = selectedMember();
+  if (member) renderVisits(member.id);
+}
+
+function resetVisitForm() {
+  el.visitDate.value = today();
+  el.visitSummary.value = "";
+  setVisitFormMode();
+}
+
+function setVisitFormMode() {
+  const editing = Boolean(state.editingVisitId);
+  el.visitSubmitLabel.textContent = editing ? "\uC800\uC7A5" : "\uCD94\uAC00";
+  el.cancelVisitEditBtn.classList.toggle("hidden", !editing);
 }
 
 function renderVisits(memberId) {
@@ -791,15 +907,24 @@ function renderVisits(memberId) {
     .filter((visit) => visit.memberId === memberId)
     .sort((a, b) => `${b.visitDate || ""}${b.createdAt || ""}`.localeCompare(`${a.visitDate || ""}${a.createdAt || ""}`));
   el.visitCount.textContent = `${visits.length}건`;
-  el.visitDate.value = today();
+  if (!state.editingVisitId) resetVisitForm();
   el.visitList.innerHTML = visits.length
-    ? visits.map((visit) => `<article class="visit-item">
-        <strong>${escapeHtml(visit.visitDate || "")} · ${escapeHtml(visit.visitType || "심방")}</strong>
-        <p>${escapeHtml(visit.summary || "")}</p>
-        ${visit.prayer ? `<small>기도제목: ${escapeHtml(visit.prayer)}</small>` : ""}
-        ${visit.action ? `<small>후속 조치: ${escapeHtml(visit.action)}</small>` : ""}
+    ? visits.map((visit) => `<article class="visit-item ${visit.id === state.editingVisitId ? "editing" : ""}">
+        <div class="visit-item-head">
+          <strong>${escapeHtml(visit.visitDate || "")} · ${escapeHtml(visit.visitType || "심방")}</strong>
+          <button class="icon-button subtle visit-edit-button" data-visit-edit-id="${escapeAttribute(visit.id)}" type="button" title="수정" aria-label="심방내역 수정">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+            </svg>
+          </button>
+        </div>
+        <p>${escapeHtml(visitSummaryText(visit))}</p>
       </article>`).join("")
     : `<article class="visit-item"><small>기록 없음</small></article>`;
+  el.visitList.querySelectorAll("[data-visit-edit-id]").forEach((button) => {
+    button.addEventListener("click", () => startVisitEdit(button.dataset.visitEditId));
+  });
 }
 
 async function callApi(url, options) {
@@ -1057,7 +1182,7 @@ function attendanceMembersForSelectedDate() {
 
 function activeMembersForAttendance() {
   return state.members
-    .filter((member) => !member.archivedAt)
+    .filter((member) => !member.archivedAt && !member.trashedAt)
     .map((member) => ({
       ...member,
       longAbsent: Boolean(member.longAbsent),
@@ -1205,7 +1330,9 @@ function upsertAttendanceSession(session, records = []) {
 }
 
 function openVisitDates() {
-  state.selectedVisitDate = state.selectedVisitDate || latestVisitDate() || today();
+  const latestDate = latestVisitDate() || today();
+  state.selectedVisitDate = state.selectedVisitDate || latestDate;
+  state.selectedVisitMonth = state.selectedVisitMonth || visitMonthKey(state.selectedVisitDate);
   renderVisitDates();
   el.visitDatesModal.classList.remove("hidden");
   el.visitDatesModal.setAttribute("aria-hidden", "false");
@@ -1219,22 +1346,26 @@ function closeVisitDates() {
 function renderVisitDates() {
   const grouped = groupVisitsByDate();
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const selectedMonth = state.selectedVisitMonth || visitMonthKey(state.selectedVisitDate || dates[0] || today());
+  state.selectedVisitMonth = selectedMonth;
+
   if (!dates.length) {
-    el.visitDateChips.innerHTML = '<p class="visit-date-empty">아직 심방내역이 없습니다.</p>';
-    el.visitDateEntries.innerHTML = '';
+    state.selectedVisitDate = `${selectedMonth}-01`;
+    el.visitMonthLabel.textContent = formatMonthLabel(selectedMonth);
+    el.visitCalendar.innerHTML = visitCalendarHtml({}, selectedMonth);
+    el.visitDateSelectedLabel.textContent = "아직 심방내역이 없습니다.";
+    el.visitDateEntries.innerHTML = "";
     return;
   }
 
-  if (!dates.includes(state.selectedVisitDate)) state.selectedVisitDate = dates[0];
-  el.visitDateChips.innerHTML = dates.map((date) => {
-    const count = grouped[date].length;
-    return `<button class="visit-date-chip ${date === state.selectedVisitDate ? "active" : ""}" data-visit-date="${escapeAttribute(date)}" type="button">
-      <strong>${escapeHtml(formatDateLabel(date))}</strong>
-      <span>${count}건</span>
-    </button>`;
-  }).join("");
+  const datesInMonth = dates.filter((date) => date.startsWith(selectedMonth));
+  if (!state.selectedVisitDate || !state.selectedVisitDate.startsWith(selectedMonth) || (!grouped[state.selectedVisitDate] && datesInMonth.length)) {
+    state.selectedVisitDate = datesInMonth[0] || `${selectedMonth}-01`;
+  }
 
-  el.visitDateChips.querySelectorAll("[data-visit-date]").forEach((button) => {
+  el.visitMonthLabel.textContent = formatMonthLabel(selectedMonth);
+  el.visitCalendar.innerHTML = visitCalendarHtml(grouped, selectedMonth);
+  el.visitCalendar.querySelectorAll("[data-visit-date]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedVisitDate = button.dataset.visitDate;
       renderVisitDates();
@@ -1244,13 +1375,51 @@ function renderVisitDates() {
   const visits = (grouped[state.selectedVisitDate] || [])
     .slice()
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-  el.visitDateEntries.innerHTML = visits.map((visit) => visitDateEntryHtml(visit)).join("");
+  el.visitDateSelectedLabel.textContent = `${formatDateLabel(state.selectedVisitDate)} · ${visits.length}건`;
+  el.visitDateEntries.innerHTML = visits.length
+    ? visits.map((visit) => visitDateEntryHtml(visit)).join("")
+    : '<p class="visit-date-empty">선택한 날짜의 심방내역이 없습니다.</p>';
   el.visitDateEntries.querySelectorAll("[data-member-id]").forEach((button) => {
     button.addEventListener("click", () => {
       closeVisitDates();
       selectMember(button.dataset.memberId);
     });
   });
+}
+
+function shiftVisitCalendarMonth(delta) {
+  const month = state.selectedVisitMonth || visitMonthKey(state.selectedVisitDate || latestVisitDate() || today());
+  state.selectedVisitMonth = shiftMonthKey(month, delta);
+  const monthDates = Object.keys(groupVisitsByDate())
+    .filter((date) => date.startsWith(state.selectedVisitMonth))
+    .sort((a, b) => b.localeCompare(a));
+  state.selectedVisitDate = monthDates[0] || `${state.selectedVisitMonth}-01`;
+  renderVisitDates();
+}
+
+function visitCalendarHtml(grouped, monthKey) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const firstDay = new Date(year, month - 1, 1).getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const cells = [];
+
+  for (let index = 0; index < firstDay; index += 1) {
+    cells.push('<div class="visit-calendar-empty-cell"></div>');
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = `${monthKey}-${String(day).padStart(2, "0")}`;
+    const count = grouped[date]?.length || 0;
+    const active = date === state.selectedVisitDate;
+    const todayClass = date === today() ? "today" : "";
+    const countHtml = count ? `<strong>${count}</strong>` : "";
+    cells.push(`<button class="visit-calendar-day ${count ? "has-visits" : "empty"} ${active ? "active" : ""} ${todayClass}" ${count ? `data-visit-date="${escapeAttribute(date)}"` : "disabled"} type="button">
+      <span>${day}</span>
+      ${countHtml}
+    </button>`);
+  }
+
+  return cells.join("");
 }
 
 function groupVisitsByDate() {
@@ -1267,8 +1436,27 @@ function latestVisitDate() {
   return Object.keys(groupVisitsByDate()).sort((a, b) => b.localeCompare(a))[0] || "";
 }
 
+function visitMonthKey(dateValue) {
+  const match = /^(\d{4})-(\d{2})/.exec(String(dateValue || ""));
+  return match ? `${match[1]}-${match[2]}` : today().slice(0, 7);
+}
+
+function shiftMonthKey(monthKey, delta) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function visitDateKey(visit) {
   return String(visit.visitDate || visit.createdAt || "").slice(0, 10);
+}
+
+function visitSummaryText(visit) {
+  const summary = String(visit.summary || "").trim();
+  const prayer = String(visit.prayer || "").trim();
+  if (!prayer) return summary;
+  if (summary.includes(prayer) || summary.includes(`기도제목: ${prayer}`)) return summary;
+  return [summary, `기도제목: ${prayer}`].filter(Boolean).join("\n");
 }
 
 function visitDateEntryHtml(visit) {
@@ -1284,9 +1472,7 @@ function visitDateEntryHtml(visit) {
     </button>
     <div class="visit-date-body">
       <small>${escapeHtml(visit.visitType || "심방")}</small>
-      <p>${escapeHtml(visit.summary || "")}</p>
-      ${visit.prayer ? `<small>기도제목: ${escapeHtml(visit.prayer)}</small>` : ""}
-      ${visit.action ? `<small>후속 조치: ${escapeHtml(visit.action)}</small>` : ""}
+      <p>${escapeHtml(visitSummaryText(visit))}</p>
     </div>
   </article>`;
 }
@@ -1294,6 +1480,11 @@ function visitDateEntryHtml(visit) {
 function formatDateLabel(date) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || ""));
   return match ? match[1] + ". " + match[2] + ". " + match[3] + "." : date;
+}
+
+function formatMonthLabel(monthKey) {
+  const match = /^(\d{4})-(\d{2})$/.exec(String(monthKey || ""));
+  return match ? `${match[1]}년 ${Number(match[2])}월` : monthKey;
 }
 
 function updateMobileDetailState() {
@@ -1314,16 +1505,244 @@ function scrollToSelectedDetail() {
   else if (isStackedDetailView()) el.detailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function jumpToBasicInfo() {
+  const member = selectedMember();
+  if (!member) return;
+  el.profileDetails.open = true;
+  document.getElementById("basicInfoSection")?.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
+
 function openSettings() {
   el.settingsForm.reset();
+  el.callNoteWebhookUrl.value = `${window.location.origin}/api/webhook/call-note`;
+  el.callNoteTokenOutput.value = "";
+  renderCallNoteImports();
   el.settingsModal.classList.remove("hidden");
   el.settingsModal.setAttribute("aria-hidden", "false");
+  loadCallNoteTokenStatus();
+  loadCallNoteImports();
   setTimeout(() => el.currentPassword.focus(), 0);
 }
 
 function closeSettings() {
   el.settingsModal.classList.add("hidden");
   el.settingsModal.setAttribute("aria-hidden", "true");
+}
+
+async function loadCallNoteTokenStatus() {
+  if (!state.apiOnline) return;
+  try {
+    const response = await writeFetch("/api/call-note-token", {
+      headers: { Accept: "application/json" }
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "token status failed");
+    if (result.configured) {
+      el.callNoteStatus.textContent = "웹훅 토큰이 설정되어 있습니다.";
+    }
+  } catch {
+    el.callNoteStatus.textContent = "웹훅 토큰 상태를 확인하지 못했습니다.";
+  }
+}
+
+async function generateCallNoteToken() {
+  if (!state.apiOnline) {
+    toast("서버 연결 상태에서 사용할 수 있습니다.");
+    return;
+  }
+  el.callNoteTokenBtn.disabled = true;
+  el.callNoteStatus.textContent = "웹훅 토큰을 생성하는 중입니다.";
+  try {
+    const response = await writeFetch("/api/call-note-token", {
+      method: "POST",
+      headers: { Accept: "application/json" }
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "token failed");
+    el.callNoteTokenOutput.value = result.token || "";
+    el.callNoteTokenOutput.focus();
+    el.callNoteTokenOutput.select();
+    el.callNoteStatus.textContent = "새 웹훅 토큰이 생성되었습니다. 앱의 Webhook Token에 입력하세요.";
+  } catch (error) {
+    el.callNoteStatus.textContent = error.message || "웹훅 토큰을 생성하지 못했습니다.";
+  } finally {
+    el.callNoteTokenBtn.disabled = false;
+  }
+}
+
+async function loadCallNoteImports() {
+  if (!state.apiOnline) {
+    el.callNoteStatus.textContent = "서버 연결 상태에서 사용할 수 있습니다.";
+    renderCallNoteImports();
+    return;
+  }
+  el.callNoteStatus.textContent = "검토함을 불러오는 중입니다.";
+  try {
+    const response = await writeFetch("/api/call-note-imports?status=needs_review", {
+      headers: { Accept: "application/json" }
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "load failed");
+    state.callNoteImports = Array.isArray(result.imports) ? result.imports : [];
+    el.callNoteStatus.textContent = state.callNoteImports.length
+      ? `확인 필요한 기록 ${state.callNoteImports.length}건`
+      : "확인 필요한 콜노트 기록이 없습니다.";
+  } catch (error) {
+    el.callNoteStatus.textContent = error.message || "검토함을 불러오지 못했습니다.";
+  }
+  renderCallNoteImports();
+}
+
+function renderCallNoteImports() {
+  const imports = state.callNoteImports || [];
+  if (!el.callNoteInbox) return;
+  if (!imports.length) {
+    el.callNoteInbox.innerHTML = '<p class="call-note-empty">검토할 기록이 없습니다.</p>';
+    return;
+  }
+  el.callNoteInbox.innerHTML = imports.map(callNoteImportHtml).join("");
+}
+
+function callNoteImportHtml(item) {
+  const candidates = Array.isArray(item.candidates) ? item.candidates : [];
+  const title = [item.name || item.payload?.name || "이름 없음", item.cellHint || ""].filter(Boolean).join(" · ");
+  const date = item.visitDate || today();
+  const type = item.visitType || "전화";
+  const summary = item.summary || item.payload?.summary || item.payload?.note || "";
+  const reason = callNoteReasonLabel(item.matchReason);
+  return `<article class="call-note-card" data-call-note-id="${escapeAttribute(item.id)}">
+    <div class="call-note-card-head">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(reason)}</span>
+    </div>
+    <div class="call-note-card-grid">
+      <label>성도
+        <select data-call-note-member>
+          ${callNoteMemberOptions(candidates)}
+        </select>
+      </label>
+      <label>날짜<input data-call-note-date type="date" value="${escapeAttribute(date)}"></label>
+      <label>방식
+        <select data-call-note-type>
+          ${["전화", "심방", "상담", "기도"].map((option) => `<option ${option === type ? "selected" : ""}>${option}</option>`).join("")}
+        </select>
+      </label>
+      <label class="wide">요약<textarea data-call-note-summary rows="4">${escapeHtml(summary)}</textarea></label>
+    </div>
+    <div class="call-note-meta">${escapeHtml([item.phone, item.sourceId].filter(Boolean).join(" · "))}</div>
+    <div class="button-row call-note-actions">
+      <button class="icon-button text-button primary" data-call-note-action="attach" type="button">심방내역 저장</button>
+      <button class="icon-button text-button subtle" data-call-note-action="ignore" type="button">무시</button>
+    </div>
+  </article>`;
+}
+
+function callNoteMemberOptions(candidates) {
+  const byId = new Set();
+  const options = [];
+  [...candidates, ...activeMembers()].forEach((member) => {
+    if (!member?.id || byId.has(member.id)) return;
+    byId.add(member.id);
+    const label = `${member.name}${member.title || ""} · ${member.cellName || memberCellLabel(member)}`;
+    options.push(`<option value="${escapeAttribute(member.id)}">${escapeHtml(label)}</option>`);
+  });
+  return options.length ? options.join("") : '<option value="">성도 없음</option>';
+}
+
+function callNoteReasonLabel(reason) {
+  const labels = {
+    "missing-name-phone": "이름/전화 없음",
+    "ambiguous-phone": "전화번호 중복",
+    "ambiguous-name": "동명이인",
+    "ambiguous-name-cell": "동명이인",
+    "no-match": "매칭 없음"
+  };
+  return labels[reason] || "확인 필요";
+}
+
+function activeMembers() {
+  return state.members
+    .filter((member) => !member.archivedAt && !member.trashedAt)
+    .map((member) => ({
+      ...member,
+      cellName: memberCellLabel(member)
+    }))
+    .sort((a, b) => compareMembersForDisplay(a, b, true));
+}
+
+async function handleCallNoteInboxClick(event) {
+  const button = closestElement(event.target, "[data-call-note-action]");
+  if (!button) return;
+  const card = closestElement(button, "[data-call-note-id]");
+  if (!card) return;
+  const id = card.dataset.callNoteId;
+  const action = button.dataset.callNoteAction;
+  if (action === "attach") {
+    await attachCallNoteImportFromCard(card, id, button);
+    return;
+  }
+  if (action === "ignore") {
+    await ignoreCallNoteImport(id, button);
+  }
+}
+
+async function attachCallNoteImportFromCard(card, id, button) {
+  const memberId = card.querySelector("[data-call-note-member]")?.value || "";
+  const summary = card.querySelector("[data-call-note-summary]")?.value.trim() || "";
+  const visitDate = card.querySelector("[data-call-note-date]")?.value || today();
+  const visitType = card.querySelector("[data-call-note-type]")?.value || "전화";
+  if (!memberId) {
+    toast("성도를 선택하세요");
+    return;
+  }
+  if (!summary) {
+    toast("요약을 입력하세요");
+    return;
+  }
+  button.disabled = true;
+  try {
+    const response = await writeFetch(`/api/call-note-imports/${encodeURIComponent(id)}/attach`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, summary, visitDate, visitType })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "save failed");
+    if (result.visit) state.visits.unshift(result.visit);
+    state.callNoteImports = state.callNoteImports.filter((item) => item.id !== id);
+    persist();
+    renderCallNoteImports();
+    renderMembers();
+    if (selectedMember()?.id === memberId) renderVisits(memberId);
+    toast("콜노트 기록을 심방내역에 저장했습니다");
+  } catch (error) {
+    toast(error.message || "저장하지 못했습니다");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function ignoreCallNoteImport(id, button) {
+  const ok = confirm("이 콜노트 기록을 검토함에서 제외할까요?");
+  if (!ok) return;
+  button.disabled = true;
+  try {
+    const response = await writeFetch(`/api/call-note-imports/${encodeURIComponent(id)}/ignore`, {
+      method: "POST"
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "ignore failed");
+    state.callNoteImports = state.callNoteImports.filter((item) => item.id !== id);
+    renderCallNoteImports();
+    toast("콜노트 기록을 무시했습니다");
+  } catch (error) {
+    toast(error.message || "처리하지 못했습니다");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function changePassword(event) {

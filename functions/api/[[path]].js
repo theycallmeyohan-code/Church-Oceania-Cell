@@ -1,13 +1,15 @@
 const PHOTO_VERSION = "20260704-photo-fix-2";
 const PASSWORD_HASH_KEY = "auth.passwordHash";
+const CALL_NOTE_TOKEN_HASH_KEY = "callNote.tokenHash";
 const PASSWORD_ALGORITHM = "pbkdf2-sha256";
-const PASSWORD_ITERATIONS = 120000;
+const PASSWORD_ITERATIONS = 100000;
+const MAX_WEBHOOK_BYTES = 128 * 1024;
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Admin-Token,X-Call-Note-Token"
+  "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Admin-Token,X-Call-Note-Token,X-Webhook-Token"
 };
 
 export async function onRequest(context) {
@@ -16,15 +18,18 @@ export async function onRequest(context) {
 
   const path = normalizePath(params.path);
   try {
-    if (path[0] === "photos") return handlePhotoRead(env, path.slice(1));
+    if (path[0] === "photos") return await handlePhotoRead(env, path.slice(1));
     if (!env.DB) return json({ error: "D1 binding DB is not configured" }, 503);
 
-    if (path[0] === "auth") return handleAuth(request, env, path);
-    if (request.method === "GET" && path[0] === "bootstrap") return getBootstrap(env);
-    if (path[0] === "members") return handleMembers(request, env, path);
-    if (path[0] === "visit-notes") return handleVisitNotes(request, env);
-    if (path[0] === "sunday-attendance") return handleSundayAttendance(request, env);
-    if (path[0] === "call-notes") return handleCallNotes(request, env);
+    if (path[0] === "auth") return await handleAuth(request, env, path);
+    if (path[0] === "call-note-token") return await handleCallNoteToken(request, env);
+    if (request.method === "GET" && path[0] === "bootstrap") return await getBootstrap(env);
+    if (path[0] === "members") return await handleMembers(request, env, path);
+    if (path[0] === "visit-notes") return await handleVisitNotes(request, env, path);
+    if (path[0] === "sunday-attendance") return await handleSundayAttendance(request, env);
+    if (path[0] === "webhook" && path[1] === "call-note") return await handleCallNotes(request, env);
+    if (path[0] === "call-notes") return await handleCallNotes(request, env);
+    if (path[0] === "call-note-imports") return await handleCallNoteImports(request, env, path);
 
     return json({ error: "Not found" }, 404);
   } catch (error) {
@@ -43,8 +48,10 @@ async function getBootstrap(env) {
   ).all();
   const members = await env.DB.prepare(
     `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
-      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
+      prayer_requests AS prayerRequests,
+      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, trashed_at AS trashedAt, created_at AS createdAt, updated_at AS updatedAt
      FROM members
+     WHERE COALESCE(trashed_at, '') = ''
      ORDER BY cell_id, role DESC, name`
   ).all();
   const visits = await env.DB.prepare(
@@ -52,7 +59,7 @@ async function getBootstrap(env) {
       summary, prayer, action, source, created_at AS createdAt
      FROM visit_notes
      ORDER BY visit_date DESC, created_at DESC
-     LIMIT 500`
+     LIMIT 5000`
   ).all();
   return json({
     cells: cells.results || [],
@@ -66,6 +73,30 @@ async function handleAuth(request, env, path) {
     return changePassword(request, env);
   }
   return json({ error: "Not found" }, 404);
+}
+
+async function handleCallNoteToken(request, env) {
+  await requireWriteAuth(request, env);
+  await ensureAppSettingsTable(env);
+
+  if (request.method === "GET") {
+    return json({ configured: Boolean((await getCallNoteTokenHash(env)) || env.CALL_NOTE_TOKEN || env.CALL_NOTE_WEBHOOK_TOKEN) });
+  }
+
+  if (request.method === "POST") {
+    const token = randomToken();
+    const tokenHash = await createPasswordHash(token);
+    const updatedAt = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT INTO app_settings (key, value, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+    ).bind(CALL_NOTE_TOKEN_HASH_KEY, tokenHash, updatedAt).run();
+    await audit(env, request, "call_note.token.update", "setting", CALL_NOTE_TOKEN_HASH_KEY, "", { updatedAt });
+    return json({ configured: true, token });
+  }
+
+  return json({ error: "Method not allowed" }, 405);
 }
 
 async function changePassword(request, env) {
@@ -114,7 +145,7 @@ async function ensureAppSettingsTable(env) {
 
 async function verifySitePassword(password, env) {
   const storedHash = await getStoredPasswordHash(env);
-  if (storedHash) return verifyPasswordHash(password, storedHash);
+  if (storedHash && await verifyPasswordHash(password, storedHash)) return true;
   return Boolean(env.SITE_PASSWORD) && password === env.SITE_PASSWORD;
 }
 
@@ -122,6 +153,17 @@ async function getStoredPasswordHash(env) {
   try {
     const row = await env.DB.prepare("SELECT value FROM app_settings WHERE key = ?")
       .bind(PASSWORD_HASH_KEY)
+      .first();
+    return typeof row?.value === "string" ? row.value : "";
+  } catch {
+    return "";
+  }
+}
+
+async function getCallNoteTokenHash(env) {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_settings WHERE key = ?")
+      .bind(CALL_NOTE_TOKEN_HASH_KEY)
       .first();
     return typeof row?.value === "string" ? row.value : "";
   } catch {
@@ -141,11 +183,16 @@ async function verifyPasswordHash(password, storedHash) {
   if (algorithm !== PASSWORD_ALGORITHM || !Number.isFinite(iterations) || !saltText || !expectedText) {
     return false;
   }
+  if (iterations > PASSWORD_ITERATIONS) return false;
 
-  const salt = base64UrlToBytes(saltText);
-  const expected = base64UrlToBytes(expectedText);
-  const actual = new Uint8Array(await derivePasswordBits(password, salt, iterations));
-  return timingSafeBytesEqual(actual, expected);
+  try {
+    const salt = base64UrlToBytes(saltText);
+    const expected = base64UrlToBytes(expectedText);
+    const actual = new Uint8Array(await derivePasswordBits(password, salt, iterations));
+    return timingSafeBytesEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 async function derivePasswordBits(password, salt, iterations) {
@@ -168,6 +215,11 @@ function base64Url(buffer) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function randomToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return base64Url(bytes);
 }
 
 function base64UrlToBytes(value) {
@@ -198,11 +250,11 @@ async function handleMembers(request, env, path) {
     const member = normalizeMember(body, crypto.randomUUID());
     await env.DB.prepare(
       `INSERT INTO members
-        (id, cell_id, name, title, role, phone, home_phone, birth, registered_at, address, memo, long_absent, photo_key, archived_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, cell_id, name, title, role, phone, home_phone, birth, registered_at, address, memo, prayer_requests, long_absent, photo_key, archived_at, trashed_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       member.id, member.cellId, member.name, member.title, member.role, member.phone, member.homePhone, member.birth, member.registeredAt,
-      member.address, member.memo, member.longAbsent, member.photoKey, member.archivedAt, member.createdAt, member.updatedAt
+      member.address, member.memo, member.prayerRequests, member.longAbsent, member.photoKey, member.archivedAt, member.trashedAt, member.createdAt, member.updatedAt
     ).run();
     await audit(env, request, "member.create", "member", member.id, "", member);
     return json(cellsWithPhotoUrls([member])[0], 201);
@@ -219,11 +271,11 @@ async function handleMembers(request, env, path) {
     await env.DB.prepare(
       `UPDATE members
        SET cell_id = ?, name = ?, title = ?, role = ?, phone = ?, home_phone = ?, birth = ?, registered_at = ?, address = ?,
-        memo = ?, long_absent = ?, photo_key = ?, archived_at = ?, updated_at = ?
+        memo = ?, prayer_requests = ?, long_absent = ?, photo_key = ?, archived_at = ?, trashed_at = ?, updated_at = ?
        WHERE id = ?`
     ).bind(
       member.cellId, member.name, member.title, member.role, member.phone, member.homePhone, member.birth, member.registeredAt, member.address,
-      member.memo, member.longAbsent, member.photoKey, member.archivedAt, member.updatedAt, id
+      member.memo, member.prayerRequests, member.longAbsent, member.photoKey, member.archivedAt, member.trashedAt, member.updatedAt, id
     ).run();
     await audit(env, request, "member.update", "member", id, previous, member);
     return json(cellsWithPhotoUrls([member])[0]);
@@ -249,6 +301,16 @@ async function handleMembers(request, env, path) {
     return json({ id, archivedAt: "" });
   }
 
+  if (request.method === "POST" && path[2] === "trash") {
+    await requireWriteAuth(request, env);
+    const trashedAt = new Date().toISOString();
+    await env.DB.prepare("UPDATE members SET trashed_at = ?, updated_at = ? WHERE id = ?")
+      .bind(trashedAt, trashedAt, id)
+      .run();
+    await audit(env, request, "member.trash", "member", id, "", { trashedAt });
+    return json({ id, trashedAt });
+  }
+
   if (request.method === "POST" && path[2] === "photo") {
     await requireWriteAuth(request, env);
     return uploadMemberPhoto(request, env, id);
@@ -265,21 +327,53 @@ async function handleMembers(request, env, path) {
   return json({ error: "Not found" }, 404);
 }
 
-async function handleVisitNotes(request, env) {
-  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  await requireWriteAuth(request, env);
-  const body = await request.json();
-  const visit = normalizeVisit(body);
-  await env.DB.prepare(
-    `INSERT INTO visit_notes
-      (id, member_id, visit_date, visit_type, summary, prayer, action, source, raw_payload, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    visit.id, visit.memberId, visit.visitDate, visit.visitType, visit.summary,
-    visit.prayer, visit.action, visit.source, visit.rawPayload, visit.createdAt
-  ).run();
-  await audit(env, request, "visit.create", "visit_note", visit.id, "", visit);
-  return json(visit, 201);
+async function handleVisitNotes(request, env, path) {
+  if (request.method === "POST" && path.length === 1) {
+    await requireWriteAuth(request, env);
+    const body = await request.json();
+    const visit = normalizeVisit(body);
+    if (!visit.memberId || !visit.summary) return json({ error: "Visit member and summary are required" }, 400);
+    await env.DB.prepare(
+      `INSERT INTO visit_notes
+        (id, member_id, visit_date, visit_type, summary, prayer, action, source, raw_payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      visit.id, visit.memberId, visit.visitDate, visit.visitType, visit.summary,
+      visit.prayer, visit.action, visit.source, visit.rawPayload, visit.createdAt
+    ).run();
+    await audit(env, request, "visit.create", "visit_note", visit.id, "", visit);
+    return json(visit, 201);
+  }
+
+  if (request.method === "PATCH" && path.length === 2) {
+    await requireWriteAuth(request, env);
+    const id = clean(path[1]);
+    const previous = await getVisitNote(env, id);
+    if (!previous) return json({ error: "Visit note not found" }, 404);
+    const body = await request.json();
+    const visit = normalizeVisit({
+      ...previous,
+      ...body,
+      id,
+      memberId: previous.memberId,
+      source: previous.source,
+      rawPayload: previous.rawPayload,
+      createdAt: previous.createdAt
+    });
+    if (!visit.summary) return json({ error: "Visit summary is required" }, 400);
+    await env.DB.prepare(
+      `UPDATE visit_notes
+       SET visit_date = ?, visit_type = ?, summary = ?, prayer = ?, action = ?, source = ?, raw_payload = ?
+       WHERE id = ?`
+    ).bind(
+      visit.visitDate, visit.visitType, visit.summary, visit.prayer,
+      visit.action, visit.source, visit.rawPayload, id
+    ).run();
+    await audit(env, request, "visit.update", "visit_note", id, previous, visit);
+    return json(visit);
+  }
+
+  return json({ error: "Method not allowed" }, 405);
 }
 
 async function handleSundayAttendance(request, env) {
@@ -414,6 +508,7 @@ async function getActiveMembersForAttendance(env) {
      FROM members m
      JOIN cells c ON c.id = m.cell_id
      WHERE COALESCE(m.archived_at, '') = ''
+       AND COALESCE(m.trashed_at, '') = ''
      ORDER BY c.sort_order, m.long_absent, m.role DESC, m.name`
   ).all();
   return rows.results || [];
@@ -434,43 +529,120 @@ async function getSundayAttendanceRecords(env, sessionId) {
 async function handleCallNotes(request, env) {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   await requireCallNoteAuth(request, env);
-  const body = await request.json();
-  const member = await findMemberForCall(env, body);
+  ensureBodySize(request);
+  const payload = await safeJson(request);
+  const normalized = await normalizeCallNotePayload(payload);
+  if (!normalized.summary) return json({ error: "summary is required" }, 400);
+
+  const existing = await findExistingCallNoteImport(env, normalized.sourceId);
+  if (existing) {
+    return json({
+      status: existing.status,
+      duplicate: true,
+      importId: existing.id,
+      memberId: existing.member_id || "",
+      visitId: existing.visit_id || ""
+    });
+  }
+
+  const match = await resolveCallNoteMember(env, normalized);
   const importId = crypto.randomUUID();
 
-  if (!member) {
-    await env.DB.prepare(
-      "INSERT INTO call_note_imports (id, phone, status, payload) VALUES (?, ?, 'needs_review', ?)"
-    ).bind(importId, body.phone || "", JSON.stringify(body)).run();
-    return json({ status: "needs_review", importId }, 202);
+  if (!match.member) {
+    await insertCallNoteImport(env, {
+      id: importId,
+      status: "needs_review",
+      normalized,
+      memberId: "",
+      visitId: "",
+      candidates: match.candidates,
+      reason: match.reason
+    });
+    return json({
+      status: "needs_review",
+      importId,
+      reason: match.reason,
+      candidates: match.candidates.map(publicMemberCandidate)
+    }, 202);
   }
 
   const visit = normalizeVisit({
-    memberId: member.id,
-    visitDate: body.callDate || body.visitDate,
-    visitType: body.visitType || "전화",
-    summary: body.summary || body.note || "",
-    prayer: body.prayer || "",
-    action: body.action || body.nextAction || "",
+    memberId: match.member.id,
+    visitDate: normalized.visitDate,
+    visitType: normalized.visitType,
+    summary: normalized.summary,
+    prayer: normalized.prayer,
+    action: normalized.action,
     source: "call-note-app",
-    rawPayload: JSON.stringify(body)
+    rawPayload: normalized.rawPayload
   });
 
   await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO visit_notes
-        (id, member_id, visit_date, visit_type, summary, prayer, action, source, raw_payload, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      visit.id, visit.memberId, visit.visitDate, visit.visitType, visit.summary,
-      visit.prayer, visit.action, visit.source, visit.rawPayload, visit.createdAt
-    ),
-    env.DB.prepare(
-      "INSERT INTO call_note_imports (id, member_id, phone, status, payload) VALUES (?, ?, ?, 'attached', ?)"
-    ).bind(importId, member.id, body.phone || member.phone || "", JSON.stringify(body))
+    insertVisitStatement(env, visit),
+    callNoteImportStatement(env, {
+      id: importId,
+      status: "attached",
+      normalized,
+      memberId: match.member.id,
+      visitId: visit.id,
+      candidates: [match.member],
+      reason: match.reason,
+      resolvedAt: visit.createdAt
+    })
   ]);
 
-  return json({ status: "attached", memberId: member.id, visitId: visit.id });
+  await audit(env, request, "call_note_webhook.attach", "visit_note", visit.id, "", {
+    importId,
+    memberId: match.member.id,
+    sourceId: normalized.sourceId,
+    matchReason: match.reason
+  });
+
+  return json({
+    status: "attached",
+    importId,
+    memberId: match.member.id,
+    visitId: visit.id,
+    matchReason: match.reason
+  }, 201);
+}
+
+async function handleCallNoteImports(request, env, path) {
+  await requireWriteAuth(request, env);
+
+  if (request.method === "GET" && path.length === 1) {
+    const url = new URL(request.url);
+    const status = clean(url.searchParams.get("status")) || "needs_review";
+    const rows = await env.DB.prepare(
+      `SELECT id, source_id AS sourceId, member_id AS memberId, visit_id AS visitId,
+        phone, name, cell_hint AS cellHint, status, summary, candidate_members AS candidateMembers,
+        match_reason AS matchReason, payload, created_at AS createdAt, resolved_at AS resolvedAt, updated_at AS updatedAt
+       FROM call_note_imports
+       WHERE status = ?
+       ORDER BY created_at DESC
+       LIMIT 100`
+    ).bind(status).all();
+    return json({ imports: (rows.results || []).map(normalizeCallNoteImportRow) });
+  }
+
+  const id = clean(path[1]);
+  if (!id) return json({ error: "Import id required" }, 400);
+
+  if (request.method === "POST" && path[2] === "attach") {
+    const body = await safeJson(request);
+    return attachCallNoteImport(request, env, id, body);
+  }
+
+  if (request.method === "POST" && path[2] === "ignore") {
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      "UPDATE call_note_imports SET status = 'ignored', resolved_at = ?, updated_at = ? WHERE id = ?"
+    ).bind(now, now, id).run();
+    await audit(env, request, "call_note_import.ignore", "call_note_import", id, "", { status: "ignored" });
+    return json({ id, status: "ignored" });
+  }
+
+  return json({ error: "Not found" }, 404);
 }
 
 async function uploadMemberPhoto(request, env, memberId) {
@@ -508,22 +680,291 @@ async function handlePhotoRead(env, keyParts) {
 async function getMember(env, id) {
   return env.DB.prepare(
     `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
-      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
+      prayer_requests AS prayerRequests,
+      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, trashed_at AS trashedAt, created_at AS createdAt, updated_at AS updatedAt
      FROM members WHERE id = ?`
   ).bind(id).first();
 }
 
-async function findMemberForCall(env, body) {
-  if (body.memberId) return getMember(env, body.memberId);
-  if (!body.phone) return null;
+async function getVisitNote(env, id) {
   return env.DB.prepare(
-    `SELECT id, cell_id AS cellId, name, title, role, phone, home_phone AS homePhone, birth, registered_at AS registeredAt, address, memo,
-      long_absent AS longAbsent, photo_key AS photoKey, archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
-     FROM members
-     WHERE replace(replace(replace(phone, '-', ''), ' ', ''), '.', '') = ?
-        OR replace(replace(replace(home_phone, '-', ''), ' ', ''), '.', '') = ?
-     LIMIT 1`
-  ).bind(String(body.phone).replace(/[-\s.]/g, ""), String(body.phone).replace(/[-\s.]/g, "")).first();
+    `SELECT id, member_id AS memberId, visit_date AS visitDate, visit_type AS visitType,
+      summary, prayer, action, source, raw_payload AS rawPayload, created_at AS createdAt
+     FROM visit_notes
+     WHERE id = ?`
+  ).bind(id).first();
+}
+
+async function normalizeCallNotePayload(payload) {
+  const rawPayload = JSON.stringify(payload || {});
+  const summary = clean(payload.summary || payload.note || payload.memo || payload.content);
+  const prayer = clean(payload.prayer || payload.prayerRequest || payload.prayerRequests);
+  const action = clean(payload.action || payload.nextAction || payload.followUp);
+  const calledAt = clean(payload.calledAt || payload.callDateTime || payload.createdAt || payload.recordedAt);
+  const visitDate = normalizeCallNoteDate(payload.visitDate || payload.callDate || payload.date || calledAt);
+  const visitType = clean(payload.visitType || payload.type) || "전화";
+  const phone = clean(payload.phone || payload.callerPhone || payload.phoneNumber || payload.normalizedPhone);
+  const name = clean(payload.name || payload.memberName || payload.contactName || payload.personName);
+  const cellHint = clean(payload.cell || payload.cellName || payload.cellHint || payload.cellId);
+  const sourceId = clean(payload.sourceId || payload.id || payload.callId || payload.recordingId)
+    || await callNoteFingerprint({ phone, name, visitDate, summary, prayer, calledAt });
+
+  return {
+    sourceId,
+    memberId: clean(payload.memberId),
+    name,
+    phone,
+    normalizedPhone: normalizePhone(phone),
+    cellHint,
+    visitDate,
+    visitType,
+    summary,
+    prayer,
+    action,
+    calledAt,
+    rawTitle: clean(payload.rawTitle || payload.title),
+    rawPayload
+  };
+}
+
+function normalizeCallNoteDate(value) {
+  const text = clean(value);
+  const match = text.match(/\b(\d{4})[-.년/]\s*(\d{1,2})[-.월/]\s*(\d{1,2})/);
+  if (match) {
+    return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  }
+  const parsed = Date.parse(text);
+  if (Number.isFinite(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function callNoteFingerprint(parts) {
+  const data = [parts.phone, parts.name, parts.visitDate, parts.summary, parts.prayer, parts.calledAt]
+    .map((part) => clean(part))
+    .join("|");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
+  return `call-note-${base64Url(digest).slice(0, 32)}`;
+}
+
+async function findExistingCallNoteImport(env, sourceId) {
+  if (!sourceId) return null;
+  return env.DB.prepare(
+    "SELECT id, member_id, visit_id, status FROM call_note_imports WHERE source_id = ? LIMIT 1"
+  ).bind(sourceId).first();
+}
+
+async function resolveCallNoteMember(env, normalized) {
+  const members = await listActiveMembersForMatching(env);
+
+  if (normalized.memberId) {
+    const member = members.find((item) => item.id === normalized.memberId);
+    if (member) return { member, candidates: [member], reason: "member-id" };
+  }
+
+  if (normalized.normalizedPhone) {
+    const matches = members.filter((member) => memberPhoneValues(member).includes(normalized.normalizedPhone));
+    if (matches.length === 1) return { member: matches[0], candidates: matches, reason: "phone" };
+    if (matches.length > 1) return { member: null, candidates: matches, reason: "ambiguous-phone" };
+  }
+
+  const specialKim = resolveKnownSpecialName(members, normalized);
+  if (specialKim) return specialKim;
+
+  const name = compactKoreanName(normalized.name);
+  if (!name) return { member: null, candidates: [], reason: "missing-name-phone" };
+
+  const nameMatches = members.filter((member) => compactKoreanName(member.name) === name);
+  const hinted = nameMatches.filter((member) => memberMatchesCellHint(member, normalized.cellHint));
+  if (hinted.length === 1) return { member: hinted[0], candidates: hinted, reason: "name-cell" };
+  if (hinted.length > 1) return { member: null, candidates: hinted, reason: "ambiguous-name-cell" };
+  if (nameMatches.length === 1) return { member: nameMatches[0], candidates: nameMatches, reason: "unique-name" };
+  if (nameMatches.length > 1) return { member: null, candidates: nameMatches, reason: "ambiguous-name" };
+
+  return { member: null, candidates: [], reason: "no-match" };
+}
+
+function resolveKnownSpecialName(members, normalized) {
+  const name = compactKoreanName(normalized.name);
+  if (name !== "김미숙") return null;
+  const text = [normalized.summary, normalized.prayer, normalized.rawTitle].join(" ");
+  const female25 = members.filter((member) => member.cellId === "female-25" && member.name === "김미숙");
+  if (text.includes("윤동현")) {
+    const member = female25.find((item) => item.role === "prayer_leader");
+    if (member) return { member, candidates: [member], reason: "special-kimmisook-yoon" };
+  }
+  if (text.includes("조성도")) {
+    const member = female25.find((item) => String(item.title || "").includes("B"));
+    if (member) return { member, candidates: [member], reason: "special-kimmisook-cho" };
+  }
+  return null;
+}
+
+async function listActiveMembersForMatching(env) {
+  const rows = await env.DB.prepare(
+    `SELECT m.id, m.cell_id AS cellId, c.name AS cellName, c.sort_order AS cellSortOrder,
+      m.name, m.title, m.role, m.phone, m.home_phone AS homePhone
+     FROM members m
+     JOIN cells c ON c.id = m.cell_id
+     WHERE COALESCE(m.archived_at, '') = ''
+       AND COALESCE(m.trashed_at, '') = ''
+     ORDER BY c.sort_order, m.name`
+  ).all();
+  return rows.results || [];
+}
+
+function memberPhoneValues(member) {
+  return [member.phone, member.homePhone].map(normalizePhone).filter(Boolean);
+}
+
+function normalizePhone(value) {
+  let digits = String(value || "").replace(/\D/g, "");
+  if (digits.startsWith("82") && digits.length >= 11) digits = `0${digits.slice(2)}`;
+  return digits;
+}
+
+function compactKoreanName(value) {
+  return String(value || "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/(권사님|집사님|성도님|장로님|권사|집사B|집사|성도|장로|님)/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+function memberMatchesCellHint(member, hint) {
+  const text = clean(hint);
+  if (!text) return false;
+  if (text === member.cellId || text === member.cellName) return true;
+  const match = text.match(/(남|여)(?:자)?\s*(\d+)\s*셀/);
+  if (!match) return false;
+  const gender = match[1] === "남" ? "male" : "female";
+  return member.cellId === `${gender}-${Number(match[2])}`;
+}
+
+async function insertCallNoteImport(env, input) {
+  await callNoteImportStatement(env, input).run();
+}
+
+function callNoteImportStatement(env, input) {
+  const now = new Date().toISOString();
+  return env.DB.prepare(
+    `INSERT INTO call_note_imports
+      (id, source_id, member_id, visit_id, phone, name, cell_hint, status, summary, candidate_members, match_reason, payload, created_at, resolved_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    input.id,
+    input.normalized.sourceId,
+    input.memberId || "",
+    input.visitId || "",
+    input.normalized.phone,
+    input.normalized.name,
+    input.normalized.cellHint,
+    input.status,
+    input.normalized.summary,
+    JSON.stringify((input.candidates || []).map(publicMemberCandidate)),
+    input.reason || "",
+    input.normalized.rawPayload,
+    now,
+    input.resolvedAt || "",
+    now
+  );
+}
+
+function insertVisitStatement(env, visit) {
+  return env.DB.prepare(
+    `INSERT INTO visit_notes
+      (id, member_id, visit_date, visit_type, summary, prayer, action, source, raw_payload, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    visit.id, visit.memberId, visit.visitDate, visit.visitType, visit.summary,
+    visit.prayer, visit.action, visit.source, visit.rawPayload, visit.createdAt
+  );
+}
+
+function publicMemberCandidate(member) {
+  return {
+    id: member.id,
+    name: member.name,
+    title: member.title || "",
+    role: member.role || "",
+    cellId: member.cellId || "",
+    cellName: member.cellName || "",
+    phone: member.phone || ""
+  };
+}
+
+function normalizeCallNoteImportRow(row) {
+  let payload = {};
+  let candidates = [];
+  try {
+    payload = JSON.parse(row.payload || "{}");
+  } catch {
+    payload = {};
+  }
+  try {
+    candidates = JSON.parse(row.candidateMembers || "[]");
+  } catch {
+    candidates = [];
+  }
+  return {
+    ...row,
+    payload,
+    candidates,
+    visitDate: normalizeCallNoteDate(payload.visitDate || payload.callDate || payload.date || payload.calledAt || row.createdAt),
+    visitType: clean(payload.visitType || payload.type) || "전화",
+    prayer: clean(payload.prayer || payload.prayerRequest || payload.prayerRequests),
+    action: clean(payload.action || payload.nextAction || payload.followUp)
+  };
+}
+
+async function attachCallNoteImport(request, env, id, body) {
+  const row = await env.DB.prepare(
+    `SELECT id, source_id AS sourceId, status, payload, summary
+     FROM call_note_imports
+     WHERE id = ?`
+  ).bind(id).first();
+  if (!row) return json({ error: "Import not found" }, 404);
+  if (row.status !== "needs_review") return json({ error: "Import is already resolved" }, 409);
+
+  const memberId = clean(body.memberId);
+  const member = memberId ? await getMember(env, memberId) : null;
+  if (!member || member.trashedAt || member.archivedAt) return json({ error: "Active member is required" }, 400);
+
+  let payload = {};
+  try {
+    payload = JSON.parse(row.payload || "{}");
+  } catch {
+    payload = {};
+  }
+  const normalized = await normalizeCallNotePayload(payload);
+  const visit = normalizeVisit({
+    memberId,
+    visitDate: body.visitDate || normalized.visitDate,
+    visitType: body.visitType || normalized.visitType,
+    summary: body.summary || normalized.summary,
+    prayer: body.prayer ?? normalized.prayer,
+    action: body.action ?? normalized.action,
+    source: "call-note-app",
+    rawPayload: row.payload
+  });
+  if (!visit.summary) return json({ error: "Visit summary is required" }, 400);
+
+  const now = new Date().toISOString();
+  await env.DB.batch([
+    insertVisitStatement(env, visit),
+    env.DB.prepare(
+      `UPDATE call_note_imports
+       SET member_id = ?, visit_id = ?, status = 'attached', summary = ?, resolved_at = ?, updated_at = ?
+       WHERE id = ?`
+    ).bind(memberId, visit.id, visit.summary, now, now, id)
+  ]);
+
+  await audit(env, request, "call_note_import.attach", "visit_note", visit.id, "", {
+    importId: id,
+    memberId,
+    sourceId: row.sourceId || ""
+  });
+
+  return json({ importId: id, status: "attached", visit, memberId }, 201);
 }
 
 function normalizeMember(body, fallbackId) {
@@ -540,9 +981,11 @@ function normalizeMember(body, fallbackId) {
     registeredAt: clean(body.registeredAt),
     address: clean(body.address),
     memo: clean(body.memo),
+    prayerRequests: clean(body.prayerRequests),
     longAbsent: truthy(body.longAbsent) ? 1 : 0,
     photoKey: clean(body.photoKey),
     archivedAt: clean(body.archivedAt),
+    trashedAt: clean(body.trashedAt),
     createdAt: clean(body.createdAt) || now,
     updatedAt: now
   };
@@ -626,9 +1069,21 @@ async function requireWriteAuth(request, env) {
 }
 
 async function requireCallNoteAuth(request, env) {
-  if (!env.CALL_NOTE_TOKEN) return;
-  const token = request.headers.get("X-Call-Note-Token") || bearer(request);
-  if (token !== env.CALL_NOTE_TOKEN) throw new HttpError("Unauthorized", 401);
+  const token = request.headers.get("X-Webhook-Token") || request.headers.get("X-Call-Note-Token") || bearer(request);
+  const expected = env.CALL_NOTE_TOKEN || env.CALL_NOTE_WEBHOOK_TOKEN || env.ADMIN_TOKEN || "";
+  if (expected) {
+    if (!timingSafeStringEqual(token, expected)) throw new HttpError("Unauthorized", 401);
+    return;
+  }
+
+  const tokenHash = await getCallNoteTokenHash(env);
+  if (!tokenHash) throw new HttpError("CALL_NOTE_TOKEN is not configured", 503);
+  if (!token || !(await verifyPasswordHash(token, tokenHash))) throw new HttpError("Unauthorized", 401);
+}
+
+function ensureBodySize(request) {
+  const contentLength = Number(request.headers.get("Content-Length") || 0);
+  if (contentLength > MAX_WEBHOOK_BYTES) throw new HttpError("Payload too large", 413);
 }
 
 async function audit(env, request, action, entityType, entityId, before, after) {
@@ -645,6 +1100,12 @@ async function audit(env, request, action, entityType, entityId, before, after) 
 function bearer(request) {
   const header = request.headers.get("Authorization") || "";
   return header.toLowerCase().startsWith("bearer ") ? header.slice(7) : "";
+}
+
+function timingSafeStringEqual(actual, expected) {
+  const actualBytes = new TextEncoder().encode(String(actual || ""));
+  const expectedBytes = new TextEncoder().encode(String(expected || ""));
+  return timingSafeBytesEqual(actualBytes, expectedBytes);
 }
 
 function clean(value) {

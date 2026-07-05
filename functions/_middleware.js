@@ -2,11 +2,15 @@ const SESSION_COOKIE = "seosanch_cell_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 const PASSWORD_HASH_KEY = "auth.passwordHash";
 const PASSWORD_ALGORITHM = "pbkdf2-sha256";
+const MAX_PBKDF2_ITERATIONS = 100000;
 const PUBLIC_AUTH_ASSETS = new Set([
   "/share-card.png",
   "/favicon.svg",
   "/favicon.png",
   "/apple-touch-icon.png"
+]);
+const PUBLIC_API_PATHS = new Set([
+  "/api/webhook/call-note"
 ]);
 const SITE_URL = "https://seosanch-cell.pages.dev/";
 const META_TITLE = "\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4 \uAD50\uAD6C\uAD00\uB9AC";
@@ -22,6 +26,7 @@ export async function onRequest(context) {
 
   if (request.method === "OPTIONS") return next();
   if (PUBLIC_AUTH_ASSETS.has(url.pathname)) return next();
+  if (PUBLIC_API_PATHS.has(url.pathname)) return next();
 
   const authConfigured = await isAuthConfigured(env);
   if (!authConfigured) {
@@ -78,7 +83,7 @@ async function login(request, env) {
 
 async function verifySitePassword(password, env) {
   const storedHash = await getStoredPasswordHash(env);
-  if (storedHash) return verifyPasswordHash(password, storedHash);
+  if (storedHash && await verifyPasswordHash(password, storedHash)) return true;
   return Boolean(env.SITE_PASSWORD) && password === env.SITE_PASSWORD;
 }
 
@@ -100,11 +105,16 @@ async function verifyPasswordHash(password, storedHash) {
   if (algorithm !== PASSWORD_ALGORITHM || !Number.isFinite(iterations) || !saltText || !expectedText) {
     return false;
   }
+  if (iterations > MAX_PBKDF2_ITERATIONS) return false;
 
-  const salt = base64UrlToBytes(saltText);
-  const expected = base64UrlToBytes(expectedText);
-  const actual = new Uint8Array(await derivePasswordBits(password, salt, iterations));
-  return timingSafeBytesEqual(actual, expected);
+  try {
+    const salt = base64UrlToBytes(saltText);
+    const expected = base64UrlToBytes(expectedText);
+    const actual = new Uint8Array(await derivePasswordBits(password, salt, iterations));
+    return timingSafeBytesEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 async function derivePasswordBits(password, salt, iterations) {
