@@ -329,6 +329,10 @@ input {
   border-left: var(--table-line) solid var(--line);
 }
 
+.annual-continuation .annual-member-grid {
+  border-top: var(--table-line) solid var(--line);
+}
+
 .annual-person-card {
   display: grid;
   grid-template-rows: 34mm 8.6mm;
