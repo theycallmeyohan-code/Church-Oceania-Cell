@@ -2132,6 +2132,15 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.attendance-clear-button {
+  min-width: auto;
+  min-height: 32px;
+  padding: 5px 9px;
+  align-self: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .visit-calendar-toolbar {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) 42px;
