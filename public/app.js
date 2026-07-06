@@ -493,7 +493,7 @@ function renderCommunityTitle() {
     el.communityTitleText.textContent = displayTitle;
     el.communityTitleText.classList.toggle("missing-title", !title);
   }
-  document.title = title ? `${title} 관리` : "공동체 관리";
+  document.title = "공동체관리";
 }
 
 function memberGridHtml(members, isSearching) {
