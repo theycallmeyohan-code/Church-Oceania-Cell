@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>공동체 사진요람</title>
+    <link rel="icon" href="/favicon.png?v=community-icon-2" type="image/png" sizes="512x512">
+    <link rel="stylesheet" href="./annual-report.css?v=annual-report-2">
+  </head>
+  <body>
+    <div class="annual-toolbar" aria-label="연감 도구">
+      <div>
+        <strong>공동체 사진요람</strong>
+        <span id="annualStatus">자료를 불러오는 중입니다</span>
+      </div>
+
+      <label class="annual-check">
+        <input id="annualShowLongAbsent" type="checkbox">
+        <span>장기결석 표시</span>
+      </label>
+      <button id="annualRefreshBtn" type="button">새로고침</button>
+      <button id="annualPrintBtn" class="primary" type="button">PDF 저장</button>
+      <button id="annualBackBtn" type="button">교구관리</button>
+    </div>
+
+    <main id="annualBook" class="annual-book" aria-live="polite"></main>
+
+    <script src="./annual-report.js?v=annual-report-2"></script>
+  </body>
+</html>

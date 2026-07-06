@@ -1,0 +1,345 @@
+:root {
+  --page-width: 210mm;
+  --page-height: 297mm;
+  --table-width: 180mm;
+  --ink: #050505;
+  --line: #111;
+  --title-fill: #fffec7;
+  --cover-blue: #5a60ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #e8e3d7;
+  color: var(--ink);
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.annual-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #d3c8b6;
+  background: rgba(255, 252, 246, 0.96);
+  box-shadow: 0 8px 22px rgba(35, 28, 18, 0.08);
+}
+
+.annual-toolbar > div {
+  display: grid;
+  gap: 2px;
+  margin-right: auto;
+}
+
+.annual-toolbar strong {
+  font-size: 16px;
+}
+
+.annual-toolbar span {
+  color: #70675a;
+  font-size: 13px;
+}
+
+.annual-toolbar button,
+.annual-check {
+  min-height: 38px;
+  border: 1px solid #cfc1aa;
+  border-radius: 7px;
+  background: #fffdf8;
+  color: #3d352c;
+  font-weight: 800;
+}
+
+.annual-toolbar button {
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.annual-toolbar button.primary {
+  border-color: #287568;
+  background: #287568;
+  color: #fff;
+}
+
+.annual-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+}
+
+.annual-check input {
+  width: 16px;
+  height: 16px;
+}
+
+.annual-book {
+  display: grid;
+  gap: 18px;
+  justify-content: center;
+  padding: 24px;
+}
+
+.annual-page {
+  position: relative;
+  width: var(--page-width);
+  height: var(--page-height);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(30, 24, 16, 0.18);
+  break-after: page;
+  page-break-after: always;
+}
+
+.annual-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+
+.annual-cover {
+  background:
+    radial-gradient(circle at 85% 72%, rgba(255, 197, 88, 0.58), transparent 23%),
+    radial-gradient(circle at 46% 72%, rgba(255, 173, 178, 0.42), transparent 28%),
+    radial-gradient(circle at 18% 6%, rgba(255, 218, 123, 0.55), transparent 24%),
+    linear-gradient(126deg, #f7efd4 0%, #d9f0eb 35%, #d6f0f8 61%, #f8d7c9 100%);
+}
+
+.cover-panel {
+  position: absolute;
+  top: 24mm;
+  left: 0;
+  width: 74mm;
+  height: 244mm;
+  background: #fff;
+}
+
+.cover-title {
+  position: absolute;
+  top: 38mm;
+  left: 13.5mm;
+  width: 46mm;
+  color: var(--cover-blue);
+  font-size: 12.3mm;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
+.cover-year {
+  position: absolute;
+  top: 166mm;
+  left: 12.8mm;
+  color: var(--cover-blue);
+  font-size: 8.4mm;
+  font-weight: 500;
+  letter-spacing: 0;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.cover-logo {
+  position: absolute;
+  left: 11.8mm;
+  bottom: 27mm;
+  width: 53mm;
+  height: auto;
+}
+
+.annual-sheet {
+  padding-top: 5.8mm;
+}
+
+.annual-table {
+  width: var(--table-width);
+  margin: 0 auto;
+}
+
+.annual-cell-title {
+  height: 8.2mm;
+  border: 0.32mm solid var(--line);
+  border-bottom: 0;
+  background: var(--title-fill);
+  padding: 0 2mm;
+  text-align: right;
+  font-size: 6.8mm;
+  font-weight: 900;
+  line-height: 7.7mm;
+  letter-spacing: 0;
+}
+
+.annual-leader-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-left: 0.32mm solid var(--line);
+  border-top: 0.32mm solid var(--line);
+}
+
+.annual-leader-card,
+.annual-person-card {
+  position: relative;
+  border-right: 0.32mm solid var(--line);
+  border-bottom: 0.32mm solid var(--line);
+  background: #fff;
+}
+
+.annual-leader-card {
+  display: grid;
+  grid-template-rows: 47mm 9.2mm;
+  min-width: 0;
+}
+
+.annual-leader-photo,
+.annual-person-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.annual-leader-photo img {
+  width: auto;
+  max-width: 42mm;
+  height: auto;
+  max-height: 43mm;
+  object-fit: contain;
+}
+
+.annual-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 1.4mm;
+  border-top: 0.32mm solid var(--line);
+  font-family: "Batang", "Malgun Gothic", serif;
+  font-size: 4.8mm;
+  font-weight: 800;
+  line-height: 1.08;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.annual-member-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border-left: 0.32mm solid var(--line);
+}
+
+.annual-person-card {
+  display: grid;
+  grid-template-rows: 34mm 8.6mm;
+  height: 42.6mm;
+  min-width: 0;
+}
+
+.annual-continuation .annual-person-card {
+  height: 44.4mm;
+  grid-template-rows: 35.5mm 8.9mm;
+}
+
+.annual-person-photo img {
+  width: auto;
+  max-width: 25.8mm;
+  height: auto;
+  max-height: 31.5mm;
+  object-fit: contain;
+}
+
+.annual-continuation .annual-person-photo img {
+  max-height: 32.8mm;
+}
+
+.annual-person-card.empty img,
+.annual-leader-card.empty img {
+  display: none;
+}
+
+.annual-long-absent {
+  position: absolute;
+  top: 1.4mm;
+  left: 1.4mm;
+  z-index: 1;
+  padding: 0.7mm 1.2mm;
+  border: 0.22mm solid #b4443e;
+  border-radius: 1.2mm;
+  background: rgba(255, 244, 240, 0.94);
+  color: #9e2f2a;
+  font-size: 2.7mm;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.annual-error {
+  width: min(720px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid #d8cbb8;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #372f27;
+  font-weight: 800;
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: var(--page-width);
+    background: #fff;
+  }
+
+  .annual-toolbar {
+    display: none;
+  }
+
+  .annual-book {
+    display: block;
+    padding: 0;
+  }
+
+  .annual-page {
+    margin: 0;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .annual-toolbar {
+    position: static;
+    flex-wrap: wrap;
+  }
+
+  .annual-toolbar > div {
+    width: 100%;
+  }
+
+  .annual-book {
+    align-items: start;
+    justify-content: start;
+    overflow-x: auto;
+    padding: 16px;
+  }
+}
