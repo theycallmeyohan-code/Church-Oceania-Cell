@@ -77,6 +77,120 @@ button {
 
 .topbar .eyebrow.missing-title {
   color: var(--accent);
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.alarm-center {
+  position: fixed;
+  top: max(12px, calc(env(safe-area-inset-top) + 8px));
+  right: 86px;
+  z-index: 60;
+}
+
+.alarm-bell-button {
+  position: relative;
+  min-width: 42px;
+  min-height: 42px;
+  border-color: #d6b46d;
+  background: #fff6df;
+  color: var(--warning);
+  box-shadow: 0 10px 24px rgba(35, 31, 26, 0.14);
+}
+
+.alarm-bell-button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.alarm-bell-button span {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.alarm-panel {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(70dvh, 480px);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.alarm-panel-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.alarm-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.alarm-card {
+  display: grid;
+  gap: 9px;
+  border: 1px solid #ead5a5;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fffaf0;
+}
+
+.alarm-card strong,
+.alarm-card small {
+  display: block;
+}
+
+.alarm-card small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.alarm-card p {
+  margin: 7px 0 0;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  white-space: pre-line;
+}
+
+.alarm-actions {
+  display: flex;
+  gap: 7px;
+  justify-content: flex-end;
 }
 
 h1,
@@ -1038,11 +1152,26 @@ textarea:focus {
   font-weight: 800;
 }
 
+.visit-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.visit-trash-toggle-button,
 .visit-list-toggle-button {
   min-height: 34px;
   padding: 7px 10px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.visit-trash-toggle-button.active {
+  border-color: #d8bf8b;
+  background: #f8edd7;
+  color: #745126;
 }
 
 .visit-list-toggle-button svg {
@@ -1064,8 +1193,31 @@ textarea:focus {
 }
 
 .visit-entry textarea,
-.visit-entry-actions {
+.visit-entry-actions,
+.visit-alarm-fields {
   grid-column: 1 / -1;
+}
+
+.visit-alarm-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  border: 1px solid #ead5a5;
+  border-radius: 8px;
+  padding: 9px;
+  background: #fffaf0;
+}
+
+.visit-alarm-fields label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.visit-alarm-fields input {
+  width: 100%;
+  margin-top: 5px;
+  background: var(--surface);
 }
 
 .visit-entry-actions {
@@ -1112,6 +1264,12 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(39, 106, 99, 0.12);
 }
 
+.visit-item.trashed {
+  border-style: dashed;
+  background: #f2eee6;
+  opacity: 0.9;
+}
+
 .visit-item-head {
   display: flex;
   align-items: flex-start;
@@ -1128,14 +1286,39 @@ textarea:focus {
   font-size: 13px;
 }
 
-.visit-edit-button {
-  min-width: 32px;
-  min-height: 32px;
+.visit-item-title {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 }
 
-.visit-edit-button svg {
+.visit-item-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+
+.visit-edit-button,
+.visit-delete-button,
+.visit-restore-button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 5px;
+}
+
+.visit-edit-button svg,
+.visit-delete-button svg,
+.visit-restore-button svg {
   width: 15px;
   height: 15px;
+}
+
+.visit-delete-button {
+  color: var(--danger);
+}
+
+.visit-restore-button {
+  color: var(--primary-strong);
 }
 
 .visit-list.collapsed .visit-edit-button {
@@ -1168,6 +1351,11 @@ textarea:focus {
   display: block;
   color: var(--muted);
   line-height: 1.4;
+}
+
+.visit-alarm-label {
+  color: var(--warning);
+  font-weight: 800;
 }
 
 .settings-button {
@@ -2121,6 +2309,18 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .alarm-center {
+    right: 12px;
+  }
+
+  .alarm-panel {
+    right: 0;
+  }
+
+  .visit-alarm-fields {
+    grid-template-columns: 1fr;
+  }
+
   .topbar {
     align-items: stretch;
     flex-direction: column;

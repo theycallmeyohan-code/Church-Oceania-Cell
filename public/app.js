@@ -43,6 +43,9 @@ const INITIAL_MEMBERS = seedRows.map((row, index) => ({
 const STORE_KEY = "seosanch-cell:v1";
 const DEFAULT_COMMUNITY_TITLE = "";
 const MISSING_COMMUNITY_TITLE = "설정에서 제목을 입력하세요";
+const VISIT_META_PREFIX = "visit-meta:";
+const VISIT_TYPE_ALARM = "알람";
+const ALARM_DISMISS_KEY = "seosanch-cell:alarm-dismissed:v1";
 
 const state = {
   settings: {
@@ -69,6 +72,9 @@ const state = {
   visitListCollapsed: false,
   visitListPageOpen: false,
   expandedVisitId: "",
+  showVisitTrash: false,
+  dismissedAlarmKeys: new Set(),
+  alarmTimerId: 0,
   apiOnline: false
 };
 
@@ -79,11 +85,14 @@ document.addEventListener("DOMContentLoaded", init);
 async function init() {
   bindElements();
   bindEvents();
+  state.dismissedAlarmKeys = readDismissedAlarmKeys();
   el.memberBirth.maxLength = 10;
   populateRoleOptions();
   await loadState();
   state.selectedCellId = state.selectedCellId || state.cells[0]?.id || "";
   render();
+  renderAlarmNotifications();
+  state.alarmTimerId = window.setInterval(renderAlarmNotifications, 30000);
 }
 
 function bindElements() {
@@ -97,7 +106,8 @@ function bindElements() {
     "photoInput", "memberName", "memberTitle", "memberCell",
     "memberRole", "memberBaptismStatus", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthCalendar", "memberRegisteredAt", "memberRegisteredAtPicker", "memberRegisteredAtPickerBtn", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
-    "visitType", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitMemberSummary", "visitListToggleBtn", "visitList",
+    "visitType", "visitAlarmFields", "visitAlarmDate", "visitAlarmTime", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitMemberSummary", "visitTrashToggleBtn", "visitListToggleBtn", "visitList",
+    "alarmCenter", "alarmBellBtn", "alarmCount", "alarmPanel", "alarmCloseBtn", "alarmList",
     "toast"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
@@ -164,7 +174,13 @@ function bindEvents() {
     if (event.target === el.visitRecordModal) closeVisitRecord();
   });
   el.visitListToggleBtn.addEventListener("click", toggleVisitList);
+  el.visitTrashToggleBtn.addEventListener("click", toggleVisitTrash);
   el.visitList.addEventListener("click", handleVisitListClick);
+  el.visitType.addEventListener("change", updateVisitAlarmFields);
+  el.visitDate.addEventListener("change", syncVisitAlarmDate);
+  el.alarmBellBtn.addEventListener("click", toggleAlarmPanel);
+  el.alarmCloseBtn.addEventListener("click", closeAlarmPanel);
+  el.alarmList.addEventListener("click", handleAlarmListClick);
   el.backToListBtn.addEventListener("click", closeDetail);
   el.basicInfoJumpBtn.addEventListener("click", jumpToBasicInfo);
   el.contactMemberBtn.addEventListener("click", toggleContactActions);
@@ -376,6 +392,7 @@ function render() {
   renderMembers();
   renderDetail();
   updateMobileDetailState();
+  renderAlarmNotifications();
 }
 
 function renderCellTabs() {
@@ -694,6 +711,7 @@ function selectMember(memberId) {
   state.visitListCollapsed = isMobileView();
   state.visitListPageOpen = false;
   state.expandedVisitId = "";
+  state.showVisitTrash = false;
   persist();
   renderCellTabs();
   renderMembers();
@@ -761,6 +779,7 @@ function startNewMember() {
     state.visitListCollapsed = isMobileView();
     state.visitListPageOpen = false;
     state.expandedVisitId = "";
+    state.showVisitTrash = false;
     render();
     scrollToSelectedDetail();
     el.memberName.focus();
@@ -797,6 +816,7 @@ function startNewMember() {
   state.visitListCollapsed = isMobileView();
   state.visitListPageOpen = false;
   state.expandedVisitId = "";
+  state.showVisitTrash = false;
   render();
   scrollToSelectedDetail();
   el.memberName.focus();
@@ -1007,6 +1027,7 @@ function addVisit() {
     el.visitSummary.focus();
     return;
   }
+  if (!validateVisitAlarmForm()) return;
 
   if (state.editingVisitId) {
     updateVisit(member, summary);
@@ -1016,9 +1037,10 @@ function addVisit() {
   const visit = {
     id: `visit-${crypto.randomUUID()}`,
     memberId: member.id,
-    visitDate: el.visitDate.value || today(),
-    visitType: el.visitType.value,
+    visitDate: visitDateFromForm(),
+    visitType: el.visitType.value || "전화",
     summary,
+    action: visitActionFromForm(),
     source: "manual",
     createdAt: new Date().toISOString()
   };
@@ -1031,6 +1053,7 @@ function addVisit() {
   resetVisitForm();
   persist();
   renderVisits(member.id);
+  renderAlarmNotifications();
   hideVisitRecord();
   if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
   toast("심방내역이 추가되었습니다");
@@ -1045,10 +1068,11 @@ function updateVisit(member, summary) {
 
   const updated = {
     ...visit,
-    visitDate: el.visitDate.value || today(),
-    visitType: el.visitType.value,
+    visitDate: visitDateFromForm(),
+    visitType: el.visitType.value || "전화",
     summary,
-    prayer: ""
+    prayer: "",
+    action: visitActionFromForm(visit)
   };
   state.visits = state.visits.map((item) => item.id === updated.id ? updated : item);
   callApi(`/api/visit-notes/${encodeURIComponent(updated.id)}`, {
@@ -1060,6 +1084,7 @@ function updateVisit(member, summary) {
   resetVisitForm();
   persist();
   renderVisits(member.id);
+  renderAlarmNotifications();
   hideVisitRecord();
   if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
   toast("심방내역을 수정했습니다");
@@ -1076,6 +1101,7 @@ function startVisitEdit(visitId) {
   renderVisits(member.id);
   el.visitDate.value = visit.visitDate || today();
   el.visitType.value = visit.visitType || el.visitType.options[0]?.value || "";
+  setVisitAlarmFieldsFromVisit(visit);
   el.visitSummary.value = visitSummaryText(visit);
   setVisitFormMode();
   showVisitRecord();
@@ -1091,7 +1117,11 @@ function cancelVisitEdit() {
 
 function resetVisitForm() {
   el.visitDate.value = today();
+  el.visitType.value = el.visitType.options[0]?.value || "전화";
+  el.visitAlarmDate.value = "";
+  el.visitAlarmTime.value = "";
   el.visitSummary.value = "";
+  updateVisitAlarmFields();
   setVisitFormMode();
 }
 
@@ -1102,29 +1132,64 @@ function setVisitFormMode() {
 }
 
 function renderVisits(memberId) {
-  const visits = state.visits
+  const allVisits = state.visits
     .filter((visit) => visit.memberId === memberId)
     .sort((a, b) => `${b.visitDate || ""}${b.createdAt || ""}`.localeCompare(`${a.visitDate || ""}${a.createdAt || ""}`));
-  el.visitCount.textContent = `${visits.length}건`;
+  const activeVisits = allVisits.filter((visit) => !visitTrashedAt(visit));
+  const trashedVisits = allVisits.filter((visit) => visitTrashedAt(visit));
+  if (!trashedVisits.length) state.showVisitTrash = false;
+  const visibleVisits = state.showVisitTrash ? trashedVisits : activeVisits;
+  el.visitCount.textContent = state.showVisitTrash ? `휴지통 ${trashedVisits.length}건` : `${activeVisits.length}건`;
   if (!state.editingVisitId) resetVisitForm();
-  el.visitList.innerHTML = visits.length
-    ? visits.map((visit) => `<article class="visit-item ${visit.id === state.editingVisitId ? "editing" : ""} ${visit.id === state.expandedVisitId ? "expanded" : ""}" data-visit-id="${escapeAttribute(visit.id)}">
-        <div class="visit-item-head">
-          <strong>${escapeHtml(visit.visitDate || "")} · ${escapeHtml(visit.visitType || "심방")}</strong>
-          <button class="icon-button subtle visit-edit-button" data-visit-edit-id="${escapeAttribute(visit.id)}" type="button" title="수정" aria-label="심방내역 수정">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-            </svg>
-          </button>
-        </div>
-        <p>${escapeHtml(visitSummaryText(visit))}</p>
-      </article>`).join("")
-    : `<article class="visit-item"><small>기록 없음</small></article>`;
+  el.visitList.innerHTML = visibleVisits.length
+    ? visibleVisits.map((visit) => visitItemHtml(visit)).join("")
+    : `<article class="visit-item"><small>${state.showVisitTrash ? "휴지통이 비었습니다." : "기록 없음"}</small></article>`;
   el.visitList.querySelectorAll("[data-visit-edit-id]").forEach((button) => {
     button.addEventListener("click", () => startVisitEdit(button.dataset.visitEditId));
   });
-  renderVisitListState(visits.length);
+  renderVisitListState({
+    activeCount: activeVisits.length,
+    trashCount: trashedVisits.length,
+    visibleCount: visibleVisits.length
+  });
+}
+
+function visitItemHtml(visit) {
+  const trashed = Boolean(visitTrashedAt(visit));
+  const alarmAt = visitAlarmAt(visit);
+  const alarmHtml = alarmAt ? `<small class="visit-alarm-label">알림 ${escapeHtml(formatAlarmDateTime(alarmAt))}</small>` : "";
+  const editButton = `<button class="icon-button subtle visit-edit-button" data-visit-edit-id="${escapeAttribute(visit.id)}" type="button" title="수정" aria-label="심방내역 수정">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 20h9"></path>
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+    </svg>
+  </button>`;
+  const trashButton = `<button class="icon-button subtle visit-delete-button" data-visit-trash-id="${escapeAttribute(visit.id)}" type="button" title="휴지통으로 이동" aria-label="심방내역 휴지통으로 이동">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6h18"></path>
+      <path d="M8 6V4h8v2"></path>
+      <path d="m19 6-1 14H6L5 6"></path>
+      <path d="M10 11v6M14 11v6"></path>
+    </svg>
+  </button>`;
+  const restoreButton = `<button class="icon-button subtle visit-restore-button" data-visit-restore-id="${escapeAttribute(visit.id)}" type="button" title="복구" aria-label="심방내역 복구">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+      <path d="M3 4v7h7"></path>
+    </svg>
+  </button>`;
+  return `<article class="visit-item ${visit.id === state.editingVisitId ? "editing" : ""} ${visit.id === state.expandedVisitId ? "expanded" : ""} ${trashed ? "trashed" : ""}" data-visit-id="${escapeAttribute(visit.id)}">
+    <div class="visit-item-head">
+      <div class="visit-item-title">
+        <strong>${escapeHtml(visit.visitDate || "")} · ${escapeHtml(visit.visitType || "심방")}</strong>
+        ${alarmHtml}
+      </div>
+      <div class="visit-item-actions">
+        ${trashed ? restoreButton : `${editButton}${trashButton}`}
+      </div>
+    </div>
+    <p>${escapeHtml(visitSummaryText(visit))}</p>
+  </article>`;
 }
 
 function toggleVisitList() {
@@ -1137,20 +1202,42 @@ function toggleVisitList() {
     state.visitListPageOpen = false;
     state.expandedVisitId = "";
   }
-  renderVisitListState();
+  const member = selectedMember();
+  if (member) renderVisits(member.id);
+  else renderVisitListState();
   el.visitList.scrollTop = 0;
 }
 
+function toggleVisitTrash() {
+  state.showVisitTrash = !state.showVisitTrash;
+  state.editingVisitId = "";
+  state.expandedVisitId = "";
+  state.visitListPageOpen = false;
+  const member = selectedMember();
+  if (member) renderVisits(member.id);
+}
+
 function renderVisitListState(visitCount = state.visits.filter((visit) => visit.memberId === state.selectedMemberId).length) {
-  const hasVisits = visitCount > 0;
-  const fullPage = hasVisits && isMobileView() && state.visitListPageOpen;
-  const collapsed = hasVisits && state.visitListCollapsed && !fullPage;
+  const counts = typeof visitCount === "number"
+    ? { activeCount: visitCount, trashCount: 0, visibleCount: visitCount }
+    : visitCount;
+  const activeCount = counts.activeCount || 0;
+  const trashCount = counts.trashCount || 0;
+  const visibleCount = counts.visibleCount || 0;
+  const hasSection = activeCount + trashCount > 0;
+  const hasVisibleVisits = visibleCount > 0;
+  const fullPage = hasVisibleVisits && isMobileView() && state.visitListPageOpen;
+  const collapsed = hasVisibleVisits && state.visitListCollapsed && !fullPage;
   const visitSection = el.visitList.closest(".visit-section");
-  visitSection?.classList.toggle("empty", !hasVisits);
+  visitSection?.classList.toggle("empty", !hasSection);
+  visitSection?.classList.toggle("showing-trash", state.showVisitTrash);
   visitSection?.classList.toggle("full-page", fullPage);
   el.visitList.classList.toggle("collapsed", collapsed);
-  el.visitList.classList.toggle("scrollable", visitCount > 4);
-  el.visitListToggleBtn.classList.toggle("hidden", !hasVisits);
+  el.visitList.classList.toggle("scrollable", visibleCount > 4);
+  el.visitTrashToggleBtn.classList.toggle("hidden", !trashCount);
+  el.visitTrashToggleBtn.classList.toggle("active", state.showVisitTrash);
+  el.visitTrashToggleBtn.textContent = state.showVisitTrash ? "기록 보기" : `휴지통 ${trashCount}`;
+  el.visitListToggleBtn.classList.toggle("hidden", !hasVisibleVisits);
   el.visitListToggleBtn.classList.toggle("collapsed", collapsed);
   el.visitListToggleBtn.setAttribute("aria-expanded", fullPage || !collapsed ? "true" : "false");
   el.visitListToggleBtn.querySelector("span").textContent = fullPage ? "접기" : (collapsed ? "전체 보기" : "접기");
@@ -1158,6 +1245,16 @@ function renderVisitListState(visitCount = state.visits.filter((visit) => visit.
 }
 
 function handleVisitListClick(event) {
+  const trashButton = closestElement(event.target, "[data-visit-trash-id]");
+  if (trashButton) {
+    trashVisit(trashButton.dataset.visitTrashId);
+    return;
+  }
+  const restoreButton = closestElement(event.target, "[data-visit-restore-id]");
+  if (restoreButton) {
+    restoreVisit(restoreButton.dataset.visitRestoreId);
+    return;
+  }
   if (!isMobileView() || !state.visitListCollapsed || state.visitListPageOpen) return;
   if (closestElement(event.target, "[data-visit-edit-id]")) return;
   const item = closestElement(event.target, "[data-visit-id]");
@@ -1171,6 +1268,252 @@ function renderExpandedVisitItem() {
   el.visitList.querySelectorAll("[data-visit-id]").forEach((visitItem) => {
     visitItem.classList.toggle("expanded", allowExpanded && visitItem.dataset.visitId === state.expandedVisitId);
   });
+}
+
+function updateVisitAlarmFields() {
+  const isAlarm = el.visitType.value === VISIT_TYPE_ALARM;
+  el.visitAlarmFields.classList.toggle("hidden", !isAlarm);
+  el.visitAlarmDate.required = isAlarm;
+  el.visitAlarmTime.required = isAlarm;
+  if (!isAlarm) return;
+  el.visitAlarmDate.value = el.visitAlarmDate.value || el.visitDate.value || today();
+  el.visitAlarmTime.value = el.visitAlarmTime.value || defaultAlarmTime();
+}
+
+function syncVisitAlarmDate() {
+  if (el.visitType.value === VISIT_TYPE_ALARM && !el.visitAlarmDate.value) {
+    el.visitAlarmDate.value = el.visitDate.value || today();
+  }
+}
+
+function validateVisitAlarmForm() {
+  if (el.visitType.value !== VISIT_TYPE_ALARM) return true;
+  el.visitAlarmDate.value = el.visitAlarmDate.value || el.visitDate.value || today();
+  if (!el.visitAlarmTime.value) {
+    toast("알림 시간을 입력하세요");
+    el.visitAlarmTime.focus();
+    return false;
+  }
+  return true;
+}
+
+function setVisitAlarmFieldsFromVisit(visit) {
+  const alarm = splitAlarmDateTime(visitAlarmAt(visit));
+  el.visitAlarmDate.value = alarm.date || visit.visitDate || today();
+  el.visitAlarmTime.value = alarm.time || "";
+  updateVisitAlarmFields();
+}
+
+function visitDateFromForm() {
+  return (el.visitType.value === VISIT_TYPE_ALARM ? el.visitAlarmDate.value : el.visitDate.value) || today();
+}
+
+function visitActionFromForm(existingVisit = {}) {
+  if (el.visitType.value !== VISIT_TYPE_ALARM) {
+    return visitActionWithMeta(existingVisit, { alarmAt: "" });
+  }
+  return visitActionWithMeta(existingVisit, {
+    alarmAt: `${el.visitAlarmDate.value || el.visitDate.value || today()}T${el.visitAlarmTime.value}`
+  });
+}
+
+function defaultAlarmTime() {
+  const date = new Date(Date.now() + 60 * 60 * 1000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function trashVisit(visitId) {
+  const visit = state.visits.find((item) => item.id === visitId);
+  const member = selectedMember();
+  if (!visit || !member || visit.memberId !== member.id) return;
+  const ok = confirm("이 심방내역을 휴지통으로 이동할까요?");
+  if (!ok) return;
+  const updated = {
+    ...visit,
+    action: visitActionWithMeta(visit, { trashedAt: new Date().toISOString() })
+  };
+  state.visits = state.visits.map((item) => item.id === updated.id ? updated : item);
+  if (state.editingVisitId === updated.id) state.editingVisitId = "";
+  persist();
+  callApi(`/api/visit-notes/${encodeURIComponent(updated.id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: updated.action })
+  });
+  renderVisits(member.id);
+  renderAlarmNotifications();
+  if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
+  toast("휴지통으로 이동했습니다");
+}
+
+function restoreVisit(visitId) {
+  const visit = state.visits.find((item) => item.id === visitId);
+  const member = selectedMember();
+  if (!visit || !member || visit.memberId !== member.id) return;
+  const updated = {
+    ...visit,
+    action: visitActionWithMeta(visit, { trashedAt: "" })
+  };
+  state.visits = state.visits.map((item) => item.id === updated.id ? updated : item);
+  persist();
+  callApi(`/api/visit-notes/${encodeURIComponent(updated.id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: updated.action })
+  });
+  renderVisits(member.id);
+  renderAlarmNotifications();
+  if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
+  toast("심방내역을 복구했습니다");
+}
+
+function parseVisitMeta(source) {
+  const action = typeof source === "string" ? source : source?.action || "";
+  if (!action.startsWith(VISIT_META_PREFIX)) return {};
+  try {
+    const parsed = JSON.parse(action.slice(VISIT_META_PREFIX.length));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function visitActionNote(visit) {
+  const action = String(visit?.action || "").trim();
+  if (!action) return "";
+  if (!action.startsWith(VISIT_META_PREFIX)) return action;
+  return String(parseVisitMeta(visit).note || "").trim();
+}
+
+function visitActionWithMeta(visit, patch = {}) {
+  const meta = { ...parseVisitMeta(visit), ...patch };
+  const note = visitActionNote(visit);
+  if (note) meta.note = note;
+  ["alarmAt", "trashedAt", "note"].forEach((key) => {
+    if (!meta[key]) delete meta[key];
+  });
+  return Object.keys(meta).length ? `${VISIT_META_PREFIX}${JSON.stringify(meta)}` : "";
+}
+
+function visitAlarmAt(visit) {
+  return String(parseVisitMeta(visit).alarmAt || "").trim();
+}
+
+function visitTrashedAt(visit) {
+  return String(parseVisitMeta(visit).trashedAt || "").trim();
+}
+
+function splitAlarmDateTime(alarmAt) {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(alarmAt || ""));
+  return { date: match?.[1] || "", time: match?.[2] || "" };
+}
+
+function parseAlarmAt(alarmAt) {
+  const { date, time } = splitAlarmDateTime(alarmAt);
+  if (!date || !time) return null;
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const parsed = new Date(year, month - 1, day, hour, minute);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatAlarmDateTime(alarmAt) {
+  const parsed = parseAlarmAt(alarmAt);
+  if (!parsed) return String(alarmAt || "").replace("T", " ");
+  return `${parsed.getFullYear()}. ${parsed.getMonth() + 1}. ${parsed.getDate()}. ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
+}
+
+function alarmKey(visit) {
+  return `${visit.id}:${visitAlarmAt(visit)}`;
+}
+
+function readDismissedAlarmKeys() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ALARM_DISMISS_KEY) || "[]");
+    return new Set(Array.isArray(saved) ? saved : []);
+  } catch {
+    localStorage.removeItem(ALARM_DISMISS_KEY);
+    return new Set();
+  }
+}
+
+function saveDismissedAlarmKeys() {
+  const keys = Array.from(state.dismissedAlarmKeys).slice(-300);
+  localStorage.setItem(ALARM_DISMISS_KEY, JSON.stringify(keys));
+}
+
+function dueAlarmVisits() {
+  const now = Date.now();
+  return state.visits
+    .filter((visit) => visit.visitType === VISIT_TYPE_ALARM)
+    .filter((visit) => !visitTrashedAt(visit))
+    .filter((visit) => {
+      const alarmAt = parseAlarmAt(visitAlarmAt(visit));
+      return alarmAt && alarmAt.getTime() <= now && !state.dismissedAlarmKeys.has(alarmKey(visit));
+    })
+    .sort((a, b) => parseAlarmAt(visitAlarmAt(a)).getTime() - parseAlarmAt(visitAlarmAt(b)).getTime());
+}
+
+function renderAlarmNotifications() {
+  if (!el.alarmCenter) return;
+  const alarms = dueAlarmVisits();
+  el.alarmCenter.classList.toggle("hidden", !alarms.length);
+  el.alarmCount.textContent = String(alarms.length);
+  if (!alarms.length) {
+    closeAlarmPanel();
+    el.alarmList.innerHTML = "";
+    return;
+  }
+  el.alarmList.innerHTML = alarms.map((visit) => alarmCardHtml(visit)).join("");
+}
+
+function alarmCardHtml(visit) {
+  const member = state.members.find((item) => item.id === visit.memberId);
+  const memberLabel = member ? [member.name || "이름 없음", member.title || ""].filter(Boolean).join(" ") : "성도 정보 없음";
+  const cellLabel = member ? memberCellLabel(member) : "";
+  return `<article class="alarm-card">
+    <div>
+      <strong>${escapeHtml(memberLabel)}</strong>
+      <small>${escapeHtml([cellLabel, formatAlarmDateTime(visitAlarmAt(visit))].filter(Boolean).join(" · "))}</small>
+      <p>${escapeHtml(visitSummaryText(visit))}</p>
+    </div>
+    <div class="alarm-actions">
+      <button class="icon-button text-button subtle" data-alarm-member="${escapeAttribute(visit.memberId)}" data-alarm-visit="${escapeAttribute(visit.id)}" type="button">보기</button>
+      <button class="icon-button text-button primary" data-alarm-dismiss="${escapeAttribute(visit.id)}" type="button">확인</button>
+    </div>
+  </article>`;
+}
+
+function toggleAlarmPanel() {
+  const open = el.alarmPanel.classList.contains("hidden");
+  el.alarmPanel.classList.toggle("hidden", !open);
+  el.alarmBellBtn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function closeAlarmPanel() {
+  if (!el.alarmPanel) return;
+  el.alarmPanel.classList.add("hidden");
+  el.alarmBellBtn?.setAttribute("aria-expanded", "false");
+}
+
+function handleAlarmListClick(event) {
+  const dismissButton = closestElement(event.target, "[data-alarm-dismiss]");
+  if (dismissButton) {
+    const visit = state.visits.find((item) => item.id === dismissButton.dataset.alarmDismiss);
+    if (visit) state.dismissedAlarmKeys.add(alarmKey(visit));
+    saveDismissedAlarmKeys();
+    renderAlarmNotifications();
+    toast("알림을 확인했습니다");
+    return;
+  }
+
+  const memberButton = closestElement(event.target, "[data-alarm-member]");
+  if (!memberButton) return;
+  closeAlarmPanel();
+  selectMember(memberButton.dataset.alarmMember);
+  state.expandedVisitId = memberButton.dataset.alarmVisit || "";
+  const member = selectedMember();
+  if (member) renderVisits(member.id);
 }
 
 async function callApi(url, options) {
@@ -1751,6 +2094,7 @@ function visitCalendarHtml(grouped, monthKey) {
 
 function groupVisitsByDate() {
   return state.visits.reduce((groups, visit) => {
+    if (visitTrashedAt(visit)) return groups;
     const date = visitDateKey(visit);
     if (!date) return groups;
     groups[date] = groups[date] || [];
