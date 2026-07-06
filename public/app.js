@@ -106,7 +106,7 @@ function bindElements() {
     "photoInput", "memberName", "memberTitle", "memberCell",
     "memberRole", "memberBaptismStatus", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthCalendar", "memberRegisteredAt", "memberRegisteredAtPicker", "memberRegisteredAtPickerBtn", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
     "archiveBtn", "restoreBtn", "deleteBtn", "visitCount", "visitDate",
-    "visitType", "visitAlarmFields", "visitAlarmDate", "visitAlarmTime", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "visitMemberSummary", "visitTrashToggleBtn", "visitListToggleBtn", "visitList",
+    "visitType", "visitAlarmFields", "visitAlarmDate", "visitAlarmTime", "visitSummary", "addVisitBtn", "visitSubmitLabel", "cancelVisitEditBtn", "deleteVisitEditBtn", "visitMemberSummary", "visitTrashToggleBtn", "visitListToggleBtn", "visitList",
     "alarmCenter", "alarmBellBtn", "alarmCount", "alarmPanel", "alarmCloseBtn", "alarmList",
     "toast"
   ].forEach((id) => {
@@ -220,6 +220,7 @@ function bindEvents() {
   el.deleteBtn.addEventListener("click", deleteSelected);
   el.addVisitBtn.addEventListener("click", addVisit);
   el.cancelVisitEditBtn.addEventListener("click", cancelVisitEdit);
+  el.deleteVisitEditBtn.addEventListener("click", trashEditingVisit);
 }
 
 function setShowArchived(value) {
@@ -1129,6 +1130,7 @@ function setVisitFormMode() {
   const editing = Boolean(state.editingVisitId);
   el.visitSubmitLabel.textContent = editing ? "\uC800\uC7A5" : "\uCD94\uAC00";
   el.cancelVisitEditBtn.classList.toggle("hidden", !editing);
+  el.deleteVisitEditBtn.classList.toggle("hidden", !editing);
 }
 
 function renderVisits(memberId) {
@@ -1164,19 +1166,21 @@ function visitItemHtml(visit) {
       <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
     </svg>
   </button>`;
-  const trashButton = `<button class="icon-button subtle visit-delete-button" data-visit-trash-id="${escapeAttribute(visit.id)}" type="button" title="휴지통으로 이동" aria-label="심방내역 휴지통으로 이동">
+  const restoreButton = `<button class="icon-button text-button subtle visit-restore-button" data-visit-restore-id="${escapeAttribute(visit.id)}" type="button" title="복구" aria-label="심방내역 복구">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+      <path d="M3 4v7h7"></path>
+    </svg>
+    <span>복구</span>
+  </button>`;
+  const permanentDeleteButton = `<button class="icon-button text-button danger visit-delete-button" data-visit-delete-id="${escapeAttribute(visit.id)}" type="button" title="완전 삭제" aria-label="심방내역 완전 삭제">
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 6h18"></path>
       <path d="M8 6V4h8v2"></path>
       <path d="m19 6-1 14H6L5 6"></path>
       <path d="M10 11v6M14 11v6"></path>
     </svg>
-  </button>`;
-  const restoreButton = `<button class="icon-button subtle visit-restore-button" data-visit-restore-id="${escapeAttribute(visit.id)}" type="button" title="복구" aria-label="심방내역 복구">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 12a9 9 0 1 0 3-6.7"></path>
-      <path d="M3 4v7h7"></path>
-    </svg>
+    <span>완전삭제</span>
   </button>`;
   return `<article class="visit-item ${visit.id === state.editingVisitId ? "editing" : ""} ${visit.id === state.expandedVisitId ? "expanded" : ""} ${trashed ? "trashed" : ""}" data-visit-id="${escapeAttribute(visit.id)}">
     <div class="visit-item-head">
@@ -1185,7 +1189,7 @@ function visitItemHtml(visit) {
         ${alarmHtml}
       </div>
       <div class="visit-item-actions">
-        ${trashed ? restoreButton : `${editButton}${trashButton}`}
+        ${trashed ? `${restoreButton}${permanentDeleteButton}` : editButton}
       </div>
     </div>
     <p>${escapeHtml(visitSummaryText(visit))}</p>
@@ -1236,7 +1240,7 @@ function renderVisitListState(visitCount = state.visits.filter((visit) => visit.
   el.visitList.classList.toggle("scrollable", visibleCount > 4);
   el.visitTrashToggleBtn.classList.toggle("hidden", !trashCount);
   el.visitTrashToggleBtn.classList.toggle("active", state.showVisitTrash);
-  el.visitTrashToggleBtn.textContent = state.showVisitTrash ? "기록 보기" : `휴지통 ${trashCount}`;
+  el.visitTrashToggleBtn.textContent = state.showVisitTrash ? "휴지통 나가기" : `휴지통 ${trashCount}`;
   el.visitListToggleBtn.classList.toggle("hidden", !hasVisibleVisits);
   el.visitListToggleBtn.classList.toggle("collapsed", collapsed);
   el.visitListToggleBtn.setAttribute("aria-expanded", fullPage || !collapsed ? "true" : "false");
@@ -1245,14 +1249,14 @@ function renderVisitListState(visitCount = state.visits.filter((visit) => visit.
 }
 
 function handleVisitListClick(event) {
-  const trashButton = closestElement(event.target, "[data-visit-trash-id]");
-  if (trashButton) {
-    trashVisit(trashButton.dataset.visitTrashId);
-    return;
-  }
   const restoreButton = closestElement(event.target, "[data-visit-restore-id]");
   if (restoreButton) {
     restoreVisit(restoreButton.dataset.visitRestoreId);
+    return;
+  }
+  const deleteButton = closestElement(event.target, "[data-visit-delete-id]");
+  if (deleteButton) {
+    deleteVisitPermanently(deleteButton.dataset.visitDeleteId);
     return;
   }
   if (!isMobileView() || !state.visitListCollapsed || state.visitListPageOpen) return;
@@ -1322,12 +1326,22 @@ function defaultAlarmTime() {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function trashEditingVisit() {
+  const visitId = state.editingVisitId;
+  if (!visitId) return;
+  const moved = trashVisit(visitId);
+  if (!moved) return;
+  state.editingVisitId = "";
+  resetVisitForm();
+  hideVisitRecord();
+}
+
 function trashVisit(visitId) {
   const visit = state.visits.find((item) => item.id === visitId);
   const member = selectedMember();
-  if (!visit || !member || visit.memberId !== member.id) return;
+  if (!visit || !member || visit.memberId !== member.id) return false;
   const ok = confirm("이 심방내역을 휴지통으로 이동할까요?");
-  if (!ok) return;
+  if (!ok) return false;
   const updated = {
     ...visit,
     action: visitActionWithMeta(visit, { trashedAt: new Date().toISOString() })
@@ -1344,6 +1358,7 @@ function trashVisit(visitId) {
   renderAlarmNotifications();
   if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
   toast("휴지통으로 이동했습니다");
+  return true;
 }
 
 function restoreVisit(visitId) {
@@ -1365,6 +1380,24 @@ function restoreVisit(visitId) {
   renderAlarmNotifications();
   if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
   toast("심방내역을 복구했습니다");
+}
+
+function deleteVisitPermanently(visitId) {
+  const visit = state.visits.find((item) => item.id === visitId);
+  const member = selectedMember();
+  if (!visit || !member || visit.memberId !== member.id) return;
+  const ok = confirm("휴지통의 심방내역을 완전히 삭제할까요?\n이 작업은 되돌릴 수 없습니다.");
+  if (!ok) return;
+  state.visits = state.visits.filter((item) => item.id !== visit.id);
+  if (state.editingVisitId === visit.id) state.editingVisitId = "";
+  persist();
+  callApi(`/api/visit-notes/${encodeURIComponent(visit.id)}`, {
+    method: "DELETE"
+  });
+  renderVisits(member.id);
+  renderAlarmNotifications();
+  if (!el.visitDatesModal.classList.contains("hidden")) renderVisitDates();
+  toast("심방내역을 완전히 삭제했습니다");
 }
 
 function parseVisitMeta(source) {

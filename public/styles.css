@@ -1298,6 +1298,12 @@ textarea:focus {
   gap: 4px;
 }
 
+.visit-item-actions .text-button {
+  min-height: 30px;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+
 .visit-edit-button,
 .visit-delete-button,
 .visit-restore-button {

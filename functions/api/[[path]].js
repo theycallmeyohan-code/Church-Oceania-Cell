@@ -469,6 +469,16 @@ async function handleVisitNotes(request, env, path) {
     return json(visit);
   }
 
+  if (request.method === "DELETE" && path.length === 2) {
+    await requireWriteAuth(request, env);
+    const id = clean(path[1]);
+    const previous = await getVisitNote(env, id);
+    if (!previous) return json({ error: "Visit note not found" }, 404);
+    await env.DB.prepare("DELETE FROM visit_notes WHERE id = ?").bind(id).run();
+    await audit(env, request, "visit.delete", "visit_note", id, previous, "");
+    return json({ ok: true });
+  }
+
   return json({ error: "Method not allowed" }, 405);
 }
 
