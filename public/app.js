@@ -1759,11 +1759,11 @@ function renderAttendanceResults(members, presentIds) {
         <span>출석체크로</span>
       </button>
     </div>
-    <section class="attendance-result-column">
+    <section class="attendance-result-column absent">
       <h3>결석 ${absentMembers.length}명</h3>
       ${attendanceNamesByCellHtml(absentMembers, nameLinkOptions)}
     </section>
-    <section class="attendance-result-column">
+    <section class="attendance-result-column present">
       <h3>출석 ${presentMembers.length}명</h3>
       ${attendanceNamesByCellHtml(presentMembers, nameLinkOptions)}
     </section>`;

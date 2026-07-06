@@ -2051,9 +2051,27 @@ button:disabled {
   background: var(--paper);
 }
 
+.attendance-result-column.absent {
+  border-color: #e5c7c1;
+  background: #fff5f3;
+}
+
+.attendance-result-column.present {
+  border-color: #c7ddd3;
+  background: #f3faf6;
+}
+
 .attendance-result-column h3 {
   margin-bottom: 10px;
   font-size: 17px;
+}
+
+.attendance-result-column.absent h3 {
+  color: #8f4a43;
+}
+
+.attendance-result-column.present h3 {
+  color: var(--primary-strong);
 }
 
 .attendance-name-group {
