@@ -1748,6 +1748,7 @@ function attendanceMemberCardHtml(member, presentIds) {
 function renderAttendanceResults(members, presentIds) {
   const presentMembers = members.filter((member) => presentIds.has(member.id));
   const absentMembers = members.filter((member) => !presentIds.has(member.id));
+  const nameLinkOptions = { linkPhones: isMobileView(), linkDetails: !isMobileView() };
 
   el.attendanceResults.innerHTML = `
     <div class="attendance-results-toolbar">
@@ -1760,11 +1761,11 @@ function renderAttendanceResults(members, presentIds) {
     </div>
     <section class="attendance-result-column">
       <h3>결석 ${absentMembers.length}명</h3>
-      ${attendanceNamesByCellHtml(absentMembers, { linkPhones: isMobileView(), linkDetails: !isMobileView() })}
+      ${attendanceNamesByCellHtml(absentMembers, nameLinkOptions)}
     </section>
     <section class="attendance-result-column">
       <h3>출석 ${presentMembers.length}명</h3>
-      ${attendanceNamesByCellHtml(presentMembers)}
+      ${attendanceNamesByCellHtml(presentMembers, nameLinkOptions)}
     </section>`;
 }
 
