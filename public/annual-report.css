@@ -351,6 +351,7 @@ input {
 @media print {
   :root {
     --page-height: 286mm;
+    --table-left: 10.8mm;
   }
 
   html,
