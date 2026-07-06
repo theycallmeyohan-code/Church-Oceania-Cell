@@ -11,10 +11,12 @@ const annualState = {
   settings: {},
   cells: [],
   members: [],
-  showLongAbsent: false
+  showLongAbsent: false,
+  showCoverLogo: true
 };
 
 const annualEl = {};
+let annualNoticeTimer = 0;
 
 document.addEventListener("DOMContentLoaded", initAnnualReport);
 
@@ -23,9 +25,11 @@ async function initAnnualReport() {
     "annualBook",
     "annualStatus",
     "annualShowLongAbsent",
+    "annualShowLogo",
     "annualRefreshBtn",
     "annualPrintBtn",
-    "annualBackBtn"
+    "annualBackBtn",
+    "annualPrintNotice"
   ].forEach((id) => {
     annualEl[id] = document.getElementById(id);
   });
@@ -35,15 +39,46 @@ async function initAnnualReport() {
     annualState.showLongAbsent = annualEl.annualShowLongAbsent.checked;
     renderAnnualReport();
   });
-  annualEl.annualRefreshBtn.addEventListener("click", loadAnnualData);
-  annualEl.annualPrintBtn.addEventListener("click", () => window.print());
+  annualEl.annualShowLogo.addEventListener("change", () => {
+    annualState.showCoverLogo = annualEl.annualShowLogo.checked;
+    renderAnnualReport();
+  });
+  annualEl.annualRefreshBtn.addEventListener("click", () => {
+    showAnnualNotice("최신 성도, 사진, 설정 자료를 다시 불러옵니다.");
+    loadAnnualData();
+  });
+  annualEl.annualPrintBtn.addEventListener("click", handleAnnualPrint);
   annualEl.annualBackBtn.addEventListener("click", () => {
-    window.location.href = "/";
+    window.location.href = "/index.html";
   });
 
   await loadAnnualData();
 }
 
+
+function handleAnnualPrint() {
+  if (shouldBlockMobilePrint()) {
+    showAnnualNotice("PDF 저장은 PC에서 해야 안정적입니다. 컴퓨터에서 접속해 PDF 저장을 진행해 주세요.");
+    return;
+  }
+  window.print();
+}
+
+function shouldBlockMobilePrint() {
+  const narrowScreen = window.matchMedia("(max-width: 900px)").matches;
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  return narrowScreen || (coarsePointer && window.innerWidth < 1200);
+}
+
+function showAnnualNotice(message) {
+  if (!annualEl.annualPrintNotice) return;
+  annualEl.annualPrintNotice.textContent = message;
+  annualEl.annualPrintNotice.hidden = false;
+  window.clearTimeout(annualNoticeTimer);
+  annualNoticeTimer = window.setTimeout(() => {
+    annualEl.annualPrintNotice.hidden = true;
+  }, 5200);
+}
 async function loadAnnualData() {
   annualEl.annualStatus.textContent = "자료를 불러오는 중입니다";
   annualEl.annualBook.innerHTML = "";
@@ -88,7 +123,7 @@ function coverPageHtml() {
     <div class="cover-panel"></div>
     <div class="cover-title">${titleLines.map(escapeHtml).join("<br>")}</div>
     <div class="cover-year">${year}</div>
-    <img class="cover-logo" src="./annual-logo.png?v=annual-logo-1" alt="서산교회">
+    ${annualState.showCoverLogo ? '<img class="cover-logo" src="./annual-logo.png?v=annual-logo-1" alt="서산교회">' : ""}
   </section>`;
 }
 

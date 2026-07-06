@@ -419,6 +419,29 @@ h1 {
   white-space: nowrap;
 }
 
+.rail-annual-button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 10px;
+  justify-content: center;
+  border-color: #d5c6ad;
+  background: #fffdf8;
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.rail-annual-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rail-annual-button:hover {
+  border-color: #c69f58;
+  background: #fff6e4;
+  color: #6f4814;
+}
+
 .sheet {
   border-radius: 8px;
   padding: 22px;
@@ -2548,7 +2571,8 @@ button:disabled {
     color: #a0667f;
   }
 
-  .archive-toggle {
+  .archive-toggle,
+  .rail-annual-button {
     display: none;
   }
 

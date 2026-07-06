@@ -1,7 +1,9 @@
 :root {
   --page-width: 210mm;
-  --page-height: 297mm;
+  --page-height: 296mm;
   --table-width: 180mm;
+  --table-left: calc((var(--page-width) - var(--table-width)) / 2);
+  --table-line: 1px;
   --ink: #050505;
   --line: #111;
   --title-fill: #fffec7;
@@ -76,6 +78,45 @@ input {
   border-color: #287568;
   background: #287568;
   color: #fff;
+}
+
+.annual-home-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.annual-home-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.annual-print-notice {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  z-index: 20;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  padding: 13px 16px;
+  border: 1px solid #d9b36d;
+  border-radius: 8px;
+  background: #fff8e8;
+  color: #5d3a00;
+  box-shadow: 0 10px 30px rgba(45, 32, 14, 0.18);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.annual-print-notice[hidden] {
+  display: none;
 }
 
 .annual-check {
@@ -158,23 +199,26 @@ input {
 .cover-logo {
   position: absolute;
   left: 11.8mm;
-  bottom: 27mm;
-  width: 53mm;
+  bottom: 33mm;
+  width: 52mm;
   height: auto;
 }
 
 .annual-sheet {
-  padding-top: 5.8mm;
+  padding-top: 0;
 }
 
 .annual-table {
+  position: absolute;
+  top: 5.8mm;
+  left: var(--table-left);
   width: var(--table-width);
-  margin: 0 auto;
+  margin: 0;
 }
 
 .annual-cell-title {
   height: 8.2mm;
-  border: 0.32mm solid var(--line);
+  border: var(--table-line) solid var(--line);
   border-bottom: 0;
   background: var(--title-fill);
   padding: 0 2mm;
@@ -188,15 +232,15 @@ input {
 .annual-leader-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border-left: 0.32mm solid var(--line);
-  border-top: 0.32mm solid var(--line);
+  border-left: var(--table-line) solid var(--line);
+  border-top: var(--table-line) solid var(--line);
 }
 
 .annual-leader-card,
 .annual-person-card {
   position: relative;
-  border-right: 0.32mm solid var(--line);
-  border-bottom: 0.32mm solid var(--line);
+  border-right: var(--table-line) solid var(--line);
+  border-bottom: var(--table-line) solid var(--line);
   background: #fff;
 }
 
@@ -228,7 +272,7 @@ input {
   justify-content: center;
   min-width: 0;
   padding: 0 1.4mm;
-  border-top: 0.32mm solid var(--line);
+  border-top: var(--table-line) solid var(--line);
   font-family: "Batang", "Malgun Gothic", serif;
   font-size: 4.8mm;
   font-weight: 800;
@@ -241,7 +285,7 @@ input {
 .annual-member-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  border-left: 0.32mm solid var(--line);
+  border-left: var(--table-line) solid var(--line);
 }
 
 .annual-person-card {
@@ -308,10 +352,12 @@ input {
   html,
   body {
     width: var(--page-width);
+    min-height: var(--page-height);
     background: #fff;
   }
 
-  .annual-toolbar {
+  .annual-toolbar,
+  .annual-print-notice {
     display: none;
   }
 
@@ -334,6 +380,16 @@ input {
 
   .annual-toolbar > div {
     width: 100%;
+  }
+
+  .annual-toolbar button,
+  .annual-check {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .annual-print-notice {
+    top: 12px;
   }
 
   .annual-book {
