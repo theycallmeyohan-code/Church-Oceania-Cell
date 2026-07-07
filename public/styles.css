@@ -1387,10 +1387,10 @@ textarea:focus {
   font-weight: 800;
 }
 
-.settings-button {
+.settings-button,
+.call-note-inbox-button {
   position: static;
   flex: 0 0 42px;
-  order: 20;
   width: 42px;
   height: 42px;
   min-width: 42px;
@@ -1400,13 +1400,48 @@ textarea:focus {
   box-shadow: 0 1px 0 rgba(35, 31, 26, 0.05);
 }
 
-.settings-button span {
+.settings-button {
+  order: 20;
+}
+
+.call-note-inbox-button {
+  position: relative;
+  order: 19;
+  color: var(--primary-strong);
+}
+
+.call-note-inbox-button.has-items {
+  border-color: #d6b46d;
+  background: #fff6df;
+  color: var(--warning);
+  box-shadow: 0 7px 18px rgba(138, 97, 40, 0.16);
+}
+
+.settings-button span,
+.call-note-inbox-label {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+.call-note-inbox-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .modal-backdrop {
@@ -1425,6 +1460,18 @@ textarea:focus {
 
 .settings-dialog {
   width: min(720px, 100%);
+  max-height: min(780px, calc(100vh - 36px));
+  max-height: min(780px, calc(100dvh - 36px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.call-note-dialog {
+  width: min(760px, 100%);
   max-height: min(780px, calc(100vh - 36px));
   max-height: min(780px, calc(100dvh - 36px));
   overflow: auto;
@@ -1507,6 +1554,14 @@ textarea:focus {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.call-note-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .call-note-head h3 {
@@ -2399,21 +2454,34 @@ button:disabled {
   .topbar {
     align-items: stretch;
     flex-direction: column;
-    padding: 12px 62px 12px 12px;
+    padding: 12px 112px 12px 12px;
     gap: 10px;
     position: relative;
   }
 
-  .settings-button {
+  .settings-button,
+  .call-note-inbox-button {
     position: absolute;
     top: 12px;
-    right: 12px;
     width: 42px;
     height: 42px;
   }
 
+  .settings-button {
+    right: 12px;
+  }
+
+  .call-note-inbox-button {
+    right: 62px;
+  }
+
   .call-note-head,
   .call-note-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .call-note-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
