@@ -208,7 +208,24 @@
             </div>
 
             <details class="profile-details" id="profileDetails">
-              <summary>신상내역</summary>
+              <summary>
+                <span class="profile-summary-main">
+                  <span class="profile-summary-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M8 7h8M8 12h8M8 17h5"></path>
+                      <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"></path>
+                    </svg>
+                  </span>
+                  <span class="profile-summary-copy">
+                    <span class="profile-summary-title">교인프로필</span>
+                    <span class="profile-summary-hint">전화, 주소, 생년월일 등 자세히 보기</span>
+                  </span>
+                </span>
+                <span class="profile-summary-action" aria-hidden="true">
+                  <span class="profile-summary-closed">펼치기</span>
+                  <span class="profile-summary-open">접기</span>
+                </span>
+              </summary>
               <div class="profile-details-grid">
                 <label>셀<select id="memberCell"></select></label>
                 <label>역할<select id="memberRole"></select></label>
