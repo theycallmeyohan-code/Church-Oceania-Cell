@@ -5,21 +5,26 @@ const ROLES = [
   { value: "prayer_leader", label: "기도장" }
 ];
 
-const INITIAL_CELLS = [
-  { id: "male-8", name: "남자 8셀", meta: "66~68년생", gender: "남자", sortOrder: 10 },
-  { id: "male-16", name: "남자 16셀", meta: "90년생이하", gender: "남자", sortOrder: 20 },
-  { id: "female-3", name: "여자 3셀", meta: "47~48년생", gender: "여자", sortOrder: 30 },
-  { id: "female-9", name: "여자 9셀", meta: "58년생", gender: "여자", sortOrder: 40 },
-  { id: "female-15", name: "여자 15셀", meta: "66년생", gender: "여자", sortOrder: 50 },
-  { id: "female-25", name: "여자 25셀", meta: "77년생", gender: "여자", sortOrder: 60 },
-  { id: "female-33", name: "여자 33셀", meta: "86~87년생", gender: "여자", sortOrder: 70 }
+const DEFAULT_INITIAL_CELLS = [
+  { id: "male-3", name: "남자 3셀", meta: "53~56년", gender: "남자", sortOrder: 10 },
+  { id: "male-11", name: "남자 11셀", meta: "73~74년", gender: "남자", sortOrder: 20 },
+  { id: "female-6", name: "여자 6셀", meta: "53~54년", gender: "여자", sortOrder: 30 },
+  { id: "female-18", name: "여자 18셀", meta: "69년", gender: "여자", sortOrder: 40 },
+  { id: "female-22", name: "여자 22셀", meta: "73년", gender: "여자", sortOrder: 50 },
+  { id: "female-30", name: "여자 30셀", meta: "82년", gender: "여자", sortOrder: 60 }
 ];
 
-const PHOTO_VERSION = "20260704-photo-fix-2";
+const INITIAL_CELLS = Array.isArray(window.PRIVATE_INITIAL_CELLS) && window.PRIVATE_INITIAL_CELLS.length
+  ? window.PRIVATE_INITIAL_CELLS
+  : DEFAULT_INITIAL_CELLS;
+
+const PHOTO_VERSION = window.PRIVATE_PHOTO_VERSION || "20260704-photo-fix-2";
 
 const seedRows = [];
 
-const INITIAL_MEMBERS = seedRows.map((row, index) => ({
+const INITIAL_MEMBERS = Array.isArray(window.PRIVATE_INITIAL_MEMBERS) && window.PRIVATE_INITIAL_MEMBERS.length
+  ? window.PRIVATE_INITIAL_MEMBERS.map(normalizeInitialMember)
+  : seedRows.map((row, index) => ({
   id: `seed-${String(index + 1).padStart(3, "0")}`,
   cellId: row[0],
   name: row[1],
@@ -32,6 +37,8 @@ const INITIAL_MEMBERS = seedRows.map((row, index) => ({
   baptized: true,
   address: "",
   memo: "",
+  prayerRequests: "",
+  longAbsent: false,
   photoUrl: `photos/seed-${String(index + 1).padStart(3, "0")}.jpg?v=${PHOTO_VERSION}`,
   photoKey: "",
   photoRemoved: false,
@@ -40,12 +47,40 @@ const INITIAL_MEMBERS = seedRows.map((row, index) => ({
   updatedAt: "2026-07-04T00:00:00.000Z"
 }));
 
-const STORE_KEY = "seosanch-cell:v1";
-const DEFAULT_COMMUNITY_TITLE = "";
+const INITIAL_VISITS = Array.isArray(window.INITIAL_VISITS) ? window.INITIAL_VISITS : [];
+const STORE_KEY = `seosanch-cell:${window.MEMBER_DETAILS_VERSION || "v1"}`;
+const DEFAULT_COMMUNITY_TITLE = window.PRIVATE_COMMUNITY_TITLE || "";
 const MISSING_COMMUNITY_TITLE = "설정에서 제목을 입력하세요";
 const VISIT_META_PREFIX = "visit-meta:";
 const VISIT_TYPE_ALARM = "알람";
 const ALARM_DISMISS_KEY = "seosanch-cell:alarm-dismissed:v1";
+
+function normalizeInitialMember(member) {
+  const now = new Date().toISOString();
+  return {
+    id: member.id || crypto.randomUUID(),
+    cellId: member.cellId || "",
+    name: member.name || "",
+    title: member.title || "",
+    role: member.role || "",
+    phone: member.phone || "",
+    homePhone: member.homePhone || "",
+    birth: member.birth || "",
+    registeredAt: member.registeredAt || "",
+    baptized: member.baptized !== false,
+    address: member.address || "",
+    memo: member.memo || "",
+    prayerRequests: member.prayerRequests || "",
+    longAbsent: Boolean(member.longAbsent),
+    photoUrl: member.photoUrl || "",
+    photoKey: member.photoKey || "",
+    photoRemoved: Boolean(member.photoRemoved),
+    archivedAt: member.archivedAt || "",
+    trashedAt: member.trashedAt || "",
+    createdAt: member.createdAt || now,
+    updatedAt: member.updatedAt || now
+  };
+}
 
 const state = {
   settings: {
@@ -318,7 +353,7 @@ function readLocal() {
     settings: { communityTitle: DEFAULT_COMMUNITY_TITLE },
     cells: structuredClone(INITIAL_CELLS),
     members: initialMembers,
-    visits: [],
+    visits: structuredClone(INITIAL_VISITS),
     attendanceSessions: [],
     selectedCellId: INITIAL_CELLS[0]?.id || "",
     showArchived: false
@@ -346,6 +381,8 @@ function applyMemberDetails(members) {
       member.registeredAt = member.registeredAt || detail.registeredAt || "";
       member.address = member.address || detail.address || "";
       member.memo = mergeDetailMemo(member.memo, detail.memo);
+      if (!member.prayerRequests && detail.prayerRequests) member.prayerRequests = detail.prayerRequests;
+      if (detail.longAbsent !== undefined) member.longAbsent = Boolean(detail.longAbsent);
       return;
     }
     if (!member.phone && detail.phone) member.phone = detail.phone;
@@ -354,6 +391,8 @@ function applyMemberDetails(members) {
     if (!member.registeredAt && detail.registeredAt) member.registeredAt = detail.registeredAt;
     if (!member.address && detail.address) member.address = detail.address;
     member.memo = mergeDetailMemo(member.memo, detail.memo);
+    if (!member.prayerRequests && detail.prayerRequests) member.prayerRequests = detail.prayerRequests;
+    if (detail.longAbsent !== undefined) member.longAbsent = Boolean(detail.longAbsent);
   });
 }
 

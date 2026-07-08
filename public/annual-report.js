@@ -96,9 +96,28 @@ async function loadAnnualData() {
     annualState.members = Array.isArray(data.members) ? data.members : [];
     renderAnnualReport();
   } catch (error) {
+    const fallback = privateAnnualData();
+    if (fallback.cells.length && fallback.members.length) {
+      annualState.settings = fallback.settings;
+      annualState.cells = fallback.cells;
+      annualState.members = fallback.members;
+      renderAnnualReport();
+      annualEl.annualStatus.textContent += " · 로컬 자료";
+      return;
+    }
     annualEl.annualStatus.textContent = "자료를 불러오지 못했습니다";
     annualEl.annualBook.innerHTML = `<div class="annual-error">연감 자료를 불러오지 못했습니다. 로그인 상태와 네트워크를 확인한 뒤 새로고침하세요.</div>`;
   }
+}
+
+function privateAnnualData() {
+  return {
+    settings: {
+      communityTitle: window.PRIVATE_COMMUNITY_TITLE || ""
+    },
+    cells: Array.isArray(window.PRIVATE_INITIAL_CELLS) ? window.PRIVATE_INITIAL_CELLS : [],
+    members: Array.isArray(window.PRIVATE_INITIAL_MEMBERS) ? window.PRIVATE_INITIAL_MEMBERS : []
+  };
 }
 
 function renderAnnualReport() {
