@@ -6,7 +6,7 @@
     {
       "binding": "DB",
       "database_name": "church-oceania-cell-db",
-      "database_id": "1caf76f1-ab7d-4f16-ac30-ab8c26fa3fcc",
+      "database_id": "b51e4001-db25-4428-bb3c-a42930afa54a",
       "migrations_dir": "migrations"
     }
   ],
