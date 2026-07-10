@@ -1,3 +1,12 @@
+import {
+  PASSKEYS_SETTING_KEY,
+  clearPasskeys,
+  createRegistrationOptions,
+  getPasskeys,
+  readPasskeyRequest,
+  registerPasskey
+} from "../_shared/passkeys.js";
+
 const PHOTO_VERSION = "20260708-oceania-r2-1";
 const DEFAULT_COMMUNITY_TITLE = "\uC624\uC138\uC544\uB2C8\uC544 \uACF5\uB3D9\uCCB4";
 const PASSWORD_HASH_KEY = "auth.passwordHash";
@@ -78,6 +87,35 @@ async function getBootstrap(env) {
 async function handleAuth(request, env, path) {
   if (request.method === "POST" && path[1] === "change-password") {
     return changePassword(request, env);
+  }
+  if (path[1] === "passkey") {
+    if (request.method === "GET" && path[2] === "register-options") {
+      await requireWriteAuth(request, env);
+      return json(await createRegistrationOptions(request, env));
+    }
+    if (request.method === "POST" && path[2] === "register") {
+      await requireWriteAuth(request, env);
+      const result = await registerPasskey(request, env, await readPasskeyRequest(request));
+      await audit(env, request, "auth.passkey.register", "setting", PASSKEYS_SETTING_KEY, "", {
+        count: result.count
+      });
+      return json(result, 201);
+    }
+  }
+  if (path[1] === "passkeys") {
+    if (request.method === "GET" && path.length === 2) {
+      const passkeys = await getPasskeys(env);
+      return json({ registered: passkeys.length > 0, count: passkeys.length });
+    }
+    if ((request.method === "POST" || request.method === "DELETE") && path[2] === "clear") {
+      await requireWriteAuth(request, env);
+      const previousCount = (await getPasskeys(env)).length;
+      await clearPasskeys(env);
+      await audit(env, request, "auth.passkey.clear", "setting", PASSKEYS_SETTING_KEY, "", {
+        previousCount
+      });
+      return json({ registered: false, count: 0 });
+    }
   }
   return json({ error: "Not found" }, 404);
 }

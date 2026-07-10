@@ -1,3 +1,10 @@
+import {
+  createLoginOptions,
+  getPasskeys,
+  readPasskeyRequest,
+  verifyPasskeyLogin
+} from "./_shared/passkeys.js";
+
 const SESSION_COOKIE = "church_oceania_cell_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 const PASSWORD_HASH_KEY = "auth.passwordHash";
@@ -7,7 +14,8 @@ const PUBLIC_AUTH_ASSETS = new Set([
   "/share-card.png",
   "/favicon.svg",
   "/favicon.png",
-  "/apple-touch-icon.png"
+  "/apple-touch-icon.png",
+  "/auth.js"
 ]);
 const PUBLIC_API_PATHS = new Set([
   "/api/webhook/call-note"
@@ -19,6 +27,8 @@ const META_DESCRIPTION = "\uC140\uBCC4 \uC131\uB3C4 \uAD00\uB9AC\uC640 \uC2EC\uB
 const META_IMAGE = SITE_URL + "share-card.png?v=3";
 const LOGIN_NOT_CONFIGURED = "\uB85C\uADF8\uC778 \uC124\uC815\uC774 \uC544\uC9C1 \uBC18\uC601\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.";
 const INVALID_PASSWORD = "\uBE44\uBC00\uBC88\uD638\uAC00 \uB9DE\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.";
+const LOGIN_CSP = "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'";
+const PASSKEY_PERMISSIONS_POLICY = "publickey-credentials-create=(self), publickey-credentials-get=(self)";
 
 export async function onRequest(context) {
   const { request, env, next } = context;
@@ -38,6 +48,14 @@ export async function onRequest(context) {
 
   if (url.pathname === "/__auth/login") {
     return request.method === "POST" ? login(request, env) : loginPage();
+  }
+
+  if (url.pathname === "/__auth/passkey/options") {
+    return passkeyOptions(request, env);
+  }
+
+  if (url.pathname === "/__auth/passkey/login") {
+    return passkeyLogin(request, env);
   }
 
   if (url.pathname === "/__auth/logout") {
@@ -66,10 +84,45 @@ async function login(request, env) {
     return loginPage(INVALID_PASSWORD, 401);
   }
 
+  return redirect("/", { "Set-Cookie": await createSessionCookie(env) });
+}
+
+async function passkeyOptions(request, env) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  try {
+    const url = new URL(request.url);
+    if (url.searchParams.get("check") === "1") {
+      return json({ available: (await getPasskeys(env)).length > 0 }, 200, { "Cache-Control": "no-store" });
+    }
+    return json(await createLoginOptions(request, env), 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    return json({ error: error.message || "Passkey options failed" }, error.status || 500, {
+      "Cache-Control": "no-store"
+    });
+  }
+}
+
+async function passkeyLogin(request, env) {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  try {
+    const credential = await readPasskeyRequest(request);
+    await verifyPasskeyLogin(request, env, credential);
+    return json({ ok: true }, 200, {
+      "Cache-Control": "no-store",
+      "Set-Cookie": await createSessionCookie(env)
+    });
+  } catch (error) {
+    return json({ error: error.message || "Passkey login failed" }, error.status || 500, {
+      "Cache-Control": "no-store"
+    });
+  }
+}
+
+async function createSessionCookie(env) {
   const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
   const payload = `${expiresAt}`;
   const signature = await sign(payload, env);
-  const cookie = [
+  return [
     `${SESSION_COOKIE}=${payload}.${signature}`,
     "Path=/",
     "HttpOnly",
@@ -77,8 +130,6 @@ async function login(request, env) {
     "SameSite=Lax",
     `Max-Age=${SESSION_TTL_SECONDS}`
   ].join("; ");
-
-  return redirect("/", { "Set-Cookie": cookie });
 }
 
 async function verifySitePassword(password, env) {
@@ -229,6 +280,25 @@ function loginPage(error = "", status = 200) {
         font-weight: 800;
         cursor: pointer;
       }
+      button:disabled { opacity: 0.6; cursor: wait; }
+      .passkey-area {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #e4d9ca;
+      }
+      .passkey-button {
+        margin-top: 0;
+        border: 1px solid #23746b;
+        background: #fff;
+        color: #1d625b;
+      }
+      .passkey-status {
+        min-height: 20px;
+        margin: 10px 0 0;
+        color: #6d6255;
+        font-size: 13px;
+        line-height: 1.45;
+      }
       .error {
         margin: 0 0 14px;
         color: #b42318;
@@ -238,7 +308,7 @@ function loginPage(error = "", status = 200) {
   </head>
   <body>
     <main>
-      <p class="eyebrow">\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4</p>
+      <p class="eyebrow">\uC624\uC138\uC544\uB2C8\uC544 \uACF5\uB3D9\uCCB4</p>
       <h1>공동체관리</h1>
       ${errorMarkup}
       <form method="post" action="/__auth/login">
@@ -248,10 +318,26 @@ function loginPage(error = "", status = 200) {
         </label>
         <button type="submit">\uB85C\uADF8\uC778</button>
       </form>
+      <div class="passkey-area" id="passkeyArea" hidden>
+        <button class="passkey-button" id="passkeyLoginBtn" type="button">\uC0DD\uCCB4 \uC778\uC99D/\uD328\uC2A4\uD0A4\uB85C \uB85C\uADF8\uC778</button>
+        <p class="passkey-status" id="passkeyStatus" role="status"></p>
+      </div>
     </main>
+    <script src="/auth.js" defer></script>
   </body>
 </html>`,
-    { status, headers: { "Content-Type": "text/html; charset=utf-8" } }
+    {
+      status,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Content-Security-Policy": LOGIN_CSP,
+        "Permissions-Policy": PASSKEY_PERMISSIONS_POLICY,
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "same-origin"
+      }
+    }
   );
 }
 
@@ -349,9 +435,9 @@ function escapeHtml(value) {
   })[char]);
 }
 
-function json(body, status) {
+function json(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" }
+    headers: { "Content-Type": "application/json; charset=utf-8", ...extraHeaders }
   });
 }

@@ -1609,6 +1609,28 @@ textarea:focus {
   margin-bottom: 0;
 }
 
+.passkey-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.passkey-registration-status {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.passkey-registration-status.registered {
+  color: var(--accent);
+}
+
+.passkey-actions {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
 .call-note-settings {
   display: grid;
   gap: 12px;
@@ -2575,6 +2597,15 @@ button:disabled {
 
   .call-note-token-row {
     grid-template-columns: 1fr;
+  }
+
+  .passkey-setting-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .passkey-actions {
+    width: 100%;
   }
 
   .call-note-card-grid {

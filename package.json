@@ -6,6 +6,6 @@
   "scripts": {
     "dev": "npx wrangler pages dev public --persist-to=.wrangler/state",
     "deploy": "npx wrangler pages deploy public --project-name church-oceania-cell",
-    "check": "node --check public/app.js && node --check functions/_middleware.js && node --check functions/api/[[path]].js"
+    "check": "node --check public/app.js && node --check public/auth.js && node --check functions/_middleware.js && node --check functions/_shared/passkeys.js && node --check functions/api/[[path]].js"
   }
 }

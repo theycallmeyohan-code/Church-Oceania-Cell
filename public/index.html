@@ -507,6 +507,22 @@
           <label>새 비밀번호<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
           <label>새 비밀번호 확인<input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></label>
         </div>
+        <section class="call-note-settings passkey-settings">
+          <div class="call-note-head">
+            <div>
+              <h3>생체 인증 로그인</h3>
+              <p>이 기기의 지문, 얼굴 또는 화면잠금으로 로그인할 패스키를 관리합니다.</p>
+            </div>
+          </div>
+          <div class="passkey-setting-row">
+            <strong id="passkeyRegistrationStatus" class="passkey-registration-status">등록 상태 확인 중</strong>
+            <div class="button-row passkey-actions">
+              <button class="icon-button text-button primary" id="passkeyRegisterBtn" type="button">이 기기 등록</button>
+              <button class="icon-button text-button danger" id="passkeyClearBtn" type="button">등록 삭제</button>
+            </div>
+          </div>
+          <div id="passkeySettingsMessage" class="call-note-status" role="status"></div>
+        </section>
         <section class="call-note-settings">
           <div class="call-note-head">
             <div>
@@ -576,6 +592,6 @@
         document.write('<script src="./member-details.private.js?v=oceania-2026-07-08-r2-1"><\/script>');
       }
     </script>
-    <script src="./app.js?v=webhook-inbox-expire-1"></script>
+    <script src="./app.js?v=passkey-auth-1"></script>
   </body>
 </html>

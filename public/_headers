@@ -4,3 +4,4 @@
 /*
   X-Frame-Options: DENY
   Referrer-Policy: same-origin
+  Permissions-Policy: publickey-credentials-create=(self), publickey-credentials-get=(self)

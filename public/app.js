@@ -140,7 +140,7 @@ function bindElements() {
     "activeCount", "archivedCount", "addMemberBtn", "visitDatesBtn", "attendanceBtn", "attendanceModal", "attendanceCloseBtn", "attendancePrevBtn", "attendanceNextBtn",
     "attendanceDate", "attendanceDateLabel", "attendanceHistory", "attendanceSummary", "attendanceCellStats", "attendanceMemberGrid", "attendanceResults",
     "attendanceSaveBtn", "attendanceClearBtn", "settingsBtn", "settingsModal", "settingsForm", "settingsCloseBtn", "settingsCancelBtn", "logoutBtn", "annualReportBtn", "railAnnualReportBtn",
-    "communityTitleText", "communityTitleInput", "saveCommunityTitleBtn", "currentPassword", "newPassword", "confirmPassword", "callNoteInboxBtn", "callNoteInboxCount", "callNoteModal", "callNoteCloseBtn", "callNoteRefreshBtn", "callNoteWebhookUrl", "callNoteTokenBtn", "callNoteTokenReissueBtn", "callNoteTokenOutput", "callNoteStatus", "callNoteInboxStatus", "callNoteInbox", "visitDatesModal", "visitDatesCloseBtn", "visitMonthPrevBtn", "visitMonthNextBtn", "visitMonthLabel", "visitCalendar", "visitDateSelectedLabel", "visitDateEntries", "visitRecordModal", "visitRecordCloseBtn", "detailPanel", "emptyDetail",
+    "communityTitleText", "communityTitleInput", "saveCommunityTitleBtn", "currentPassword", "newPassword", "confirmPassword", "passkeyRegistrationStatus", "passkeyRegisterBtn", "passkeyClearBtn", "passkeySettingsMessage", "callNoteInboxBtn", "callNoteInboxCount", "callNoteModal", "callNoteCloseBtn", "callNoteRefreshBtn", "callNoteWebhookUrl", "callNoteTokenBtn", "callNoteTokenReissueBtn", "callNoteTokenOutput", "callNoteStatus", "callNoteInboxStatus", "callNoteInbox", "visitDatesModal", "visitDatesCloseBtn", "visitMonthPrevBtn", "visitMonthNextBtn", "visitMonthLabel", "visitCalendar", "visitDateSelectedLabel", "visitDateEntries", "visitRecordModal", "visitRecordCloseBtn", "detailPanel", "emptyDetail",
     "memberForm", "formMode", "formTitle", "backToListBtn", "basicInfoJumpBtn", "contactMemberBtn", "contactMemberActions", "contactCallLink", "contactSmsLink", "bottomBackToListBtn", "closePanelBtn", "photoPreview", "profileDetails", "openVisitRecordBtn",
     "photoInput", "memberName", "memberTitle", "memberCell",
     "memberRole", "memberBaptismStatus", "memberPhone", "memberHomePhone", "memberBirth", "memberBirthCalendar", "memberRegisteredAt", "memberRegisteredAtPicker", "memberRegisteredAtPickerBtn", "memberAge", "memberCalendar", "memberAddress", "memberLongAbsent", "memberMemo", "memberPrayer",
@@ -238,6 +238,8 @@ function bindEvents() {
   });
   el.settingsForm.addEventListener("submit", changePassword);
   el.saveCommunityTitleBtn.addEventListener("click", saveCommunityTitle);
+  el.passkeyRegisterBtn.addEventListener("click", registerThisDevicePasskey);
+  el.passkeyClearBtn.addEventListener("click", clearRegisteredPasskeys);
   el.callNoteRefreshBtn.addEventListener("click", loadCallNoteImports);
   el.callNoteTokenBtn.addEventListener("click", viewCallNoteToken);
   el.callNoteTokenReissueBtn.addEventListener("click", reissueCallNoteToken);
@@ -2283,6 +2285,7 @@ function openSettings() {
   el.callNoteTokenOutput.value = "";
   el.settingsModal.classList.remove("hidden");
   el.settingsModal.setAttribute("aria-hidden", "false");
+  loadPasskeyStatus();
   loadCallNoteTokenStatus();
   setTimeout(() => el.currentPassword.focus(), 0);
 }
@@ -2339,6 +2342,150 @@ async function saveCommunityTitle() {
   } finally {
     el.saveCommunityTitleBtn.disabled = false;
   }
+}
+
+async function loadPasskeyStatus() {
+  const supported = Boolean(window.PublicKeyCredential && navigator.credentials?.create);
+  el.passkeyRegisterBtn.disabled = !supported;
+  el.passkeyClearBtn.disabled = true;
+  el.passkeyRegistrationStatus.classList.remove("registered");
+
+  if (!state.apiOnline) {
+    el.passkeyRegistrationStatus.textContent = "서버 연결 필요";
+    el.passkeySettingsMessage.textContent = "서버 연결 상태에서 패스키를 관리할 수 있습니다.";
+    return;
+  }
+  if (!supported) {
+    el.passkeyRegistrationStatus.textContent = "이 브라우저에서 지원하지 않음";
+    el.passkeySettingsMessage.textContent = "최신 Safari, Chrome 또는 Edge에서 이용하세요.";
+  } else {
+    el.passkeyRegistrationStatus.textContent = "등록 상태 확인 중";
+    el.passkeySettingsMessage.textContent = "";
+  }
+
+  try {
+    const response = await writeFetch("/api/auth/passkeys", {
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "passkey status failed");
+    const count = Number(result.count || 0);
+    el.passkeyRegistrationStatus.textContent = count ? `패스키 ${count}개 등록됨` : "등록되지 않음";
+    el.passkeyRegistrationStatus.classList.toggle("registered", count > 0);
+    el.passkeyClearBtn.disabled = count === 0;
+  } catch (error) {
+    el.passkeyRegistrationStatus.textContent = "등록 상태 확인 실패";
+    el.passkeySettingsMessage.textContent = error.message || "패스키 상태를 확인하지 못했습니다.";
+  }
+}
+
+async function registerThisDevicePasskey() {
+  if (!window.PublicKeyCredential || !navigator.credentials?.create) {
+    toast("이 브라우저에서는 패스키를 사용할 수 없습니다");
+    return;
+  }
+
+  el.passkeyRegisterBtn.disabled = true;
+  el.passkeySettingsMessage.textContent = "기기의 지문, 얼굴 또는 화면잠금을 확인하세요.";
+  try {
+    const optionsResponse = await writeFetch("/api/auth/passkey/register-options", {
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    const options = await optionsResponse.json().catch(() => ({}));
+    if (!optionsResponse.ok) throw new Error(options.error || "패스키 등록 준비에 실패했습니다.");
+
+    const publicKey = decodePasskeyCreationOptions(options);
+    const credential = await navigator.credentials.create({ publicKey });
+    if (!credential) throw new Error("패스키 등록이 취소되었습니다.");
+
+    const registerResponse = await writeFetch("/api/auth/passkey/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(serializePasskeyRegistration(credential))
+    });
+    const result = await registerResponse.json().catch(() => ({}));
+    if (!registerResponse.ok) throw new Error(result.error || "패스키 등록에 실패했습니다.");
+    await loadPasskeyStatus();
+    el.passkeySettingsMessage.textContent = "패스키가 등록되었습니다. 다음 로그인부터 사용할 수 있습니다.";
+    toast("이 기기의 패스키를 등록했습니다");
+  } catch (error) {
+    el.passkeySettingsMessage.textContent = passkeyUiErrorMessage(error, "패스키를 등록하지 못했습니다.");
+  } finally {
+    el.passkeyRegisterBtn.disabled = false;
+  }
+}
+
+async function clearRegisteredPasskeys() {
+  const ok = confirm("등록된 패스키를 모두 삭제할까요? 삭제 후에는 기존 비밀번호로 로그인해야 합니다.");
+  if (!ok) return;
+
+  el.passkeyClearBtn.disabled = true;
+  el.passkeySettingsMessage.textContent = "등록된 패스키를 삭제하는 중입니다.";
+  try {
+    const response = await writeFetch("/api/auth/passkeys/clear", {
+      method: "POST",
+      headers: { Accept: "application/json" }
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "패스키 삭제에 실패했습니다.");
+    await loadPasskeyStatus();
+    el.passkeySettingsMessage.textContent = "서버에 등록된 패스키를 모두 삭제했습니다.";
+    toast("패스키 등록을 삭제했습니다");
+  } catch (error) {
+    el.passkeySettingsMessage.textContent = error.message || "패스키를 삭제하지 못했습니다.";
+    el.passkeyClearBtn.disabled = false;
+  }
+}
+
+function decodePasskeyCreationOptions(options) {
+  return {
+    ...options,
+    challenge: passkeyBase64UrlToBytes(options.challenge),
+    user: {
+      ...options.user,
+      id: passkeyBase64UrlToBytes(options.user.id)
+    },
+    excludeCredentials: (options.excludeCredentials || []).map((credential) => ({
+      ...credential,
+      id: passkeyBase64UrlToBytes(credential.id)
+    }))
+  };
+}
+
+function serializePasskeyRegistration(credential) {
+  return {
+    id: credential.id,
+    rawId: passkeyBytesToBase64Url(credential.rawId),
+    type: credential.type,
+    response: {
+      clientDataJSON: passkeyBytesToBase64Url(credential.response.clientDataJSON),
+      attestationObject: passkeyBytesToBase64Url(credential.response.attestationObject)
+    }
+  };
+}
+
+function passkeyBase64UrlToBytes(value) {
+  const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function passkeyBytesToBase64Url(value) {
+  const bytes = new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function passkeyUiErrorMessage(error, fallback) {
+  if (error?.name === "NotAllowedError" || error?.name === "AbortError") {
+    return "인증이 취소되었거나 제한 시간 안에 완료되지 않았습니다.";
+  }
+  if (error?.name === "InvalidStateError") return "이 기기의 패스키가 이미 등록되어 있습니다.";
+  return error?.message || fallback;
 }
 
 async function loadCallNoteTokenStatus() {
