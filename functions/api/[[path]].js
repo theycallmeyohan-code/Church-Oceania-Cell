@@ -1,5 +1,5 @@
-const PHOTO_VERSION = "20260704-photo-fix-2";
-const DEFAULT_COMMUNITY_TITLE = "";
+const PHOTO_VERSION = "20260708-oceania-r2-1";
+const DEFAULT_COMMUNITY_TITLE = "\uC624\uC138\uC544\uB2C8\uC544 \uACF5\uB3D9\uCCB4";
 const PASSWORD_HASH_KEY = "auth.passwordHash";
 const CALL_NOTE_TOKEN_HASH_KEY = "callNote.tokenHash";
 const CALL_NOTE_TOKEN_ENCRYPTED_KEY = "callNote.tokenEncrypted";

@@ -1,4 +1,4 @@
-const SESSION_COOKIE = "seosanch_cell_session";
+const SESSION_COOKIE = "church_oceania_cell_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 const PASSWORD_HASH_KEY = "auth.passwordHash";
 const PASSWORD_ALGORITHM = "pbkdf2-sha256";
@@ -12,9 +12,9 @@ const PUBLIC_AUTH_ASSETS = new Set([
 const PUBLIC_API_PATHS = new Set([
   "/api/webhook/call-note"
 ]);
-const SITE_URL = "https://seosanch-cell.pages.dev/";
-const META_TITLE = "\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4 \uAD00\uB9AC";
-const META_SITE_NAME = "\uB0A8\uC544\uBA54\uB9AC\uCE74 \uACF5\uB3D9\uCCB4";
+const SITE_URL = "https://church-oceania-cell.pages.dev/";
+const META_TITLE = "\uC624\uC138\uC544\uB2C8\uC544 \uACF5\uB3D9\uCCB4 \uAD00\uB9AC";
+const META_SITE_NAME = "\uC624\uC138\uC544\uB2C8\uC544 \uACF5\uB3D9\uCCB4";
 const META_DESCRIPTION = "\uC140\uBCC4 \uC131\uB3C4 \uAD00\uB9AC\uC640 \uC2EC\uBC29 \uAE30\uB85D\uC744 \uC704\uD55C \uACF5\uB3D9\uCCB4 \uAD00\uB9AC \uD398\uC774\uC9C0";
 const META_IMAGE = SITE_URL + "share-card.png?v=3";
 const LOGIN_NOT_CONFIGURED = "\uB85C\uADF8\uC778 \uC124\uC815\uC774 \uC544\uC9C1 \uBC18\uC601\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.";
